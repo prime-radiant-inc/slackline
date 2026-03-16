@@ -32,24 +32,48 @@ slackline (Go binary)
 └── listen/        ← Socket Mode + JSONL output
 ```
 
-**Key dependency:** `github.com/slack-go/slack` — mature Go library with full Socket Mode support, manifest APIs, OAuth token exchange, and all messaging/history methods. 4,900+ stars, actively maintained (v0.19.0, March 2026).
+**Key dependency:** `github.com/slack-go/slack` — Go library with full Socket Mode support, manifest APIs, OAuth token exchange, and all messaging/history methods. 4,900+ stars, actively maintained (v0.19.0, March 2026). Pre-1.0: pin version in `go.mod` and wrap volatile types (especially manifest structs) in an internal adapter to insulate from breaking changes in minor versions.
 
 ### Identity Model
 
 One slackline installation = one bot identity. The agent never selects which bot to use — the environment determines identity. This prevents agents from accidentally crossing identity silos.
+
+"Installation" means one config file. Multiple configs on the same machine are possible via `SLACKLINE_CONFIG` env var or `--config` flag, but each agent process sees exactly one identity.
 
 Override precedence (highest wins):
 1. CLI flags (`--config /path/to/config.json`)
 2. Env vars (`SLACKLINE_CONFIG`, `SLACKLINE_BOT_TOKEN`, `SLACKLINE_APP_TOKEN`)
 3. Config file (`~/.config/slackline/config.json`)
 
-Env vars allow running without a config file entirely (useful for CI/containers).
+Env vars allow running without a config file entirely (useful for CI/containers). When running with env vars only, metadata (bot name, workspace name) is derived from `auth.test` API call on first use.
+
+## Error Handling
+
+All commands follow a consistent error contract:
+
+**Exit codes:**
+- `0` — success
+- `1` — Slack API error (channel not found, not in channel, rate limited, etc.)
+- `2` — auth error (invalid token, token revoked)
+- `3` — config error (missing config, invalid config, missing required fields)
+- `4` — usage error (bad flags, missing required args)
+
+**Error output:** Errors are written to stderr as JSON:
+```json
+{"error":"channel_not_found","detail":"Could not find channel #nonexistent"}
+```
+
+Success output goes to stdout. An agent can check exit code and parse stderr on failure.
+
+**Token validation:** On any auth error (HTTP 401, `token_revoked`, `invalid_auth`), all commands print a clear message to stderr: `"Token invalid or revoked. Run 'slackline init' to reconfigure."`
 
 ## Commands
 
 ### `slackline create` — Create a New Bot (Admin)
 
-Creates a Slack app via the manifest API and walks an admin through the token collection flow. Requires an App Configuration Token (one-time bootstrap).
+Creates a Slack app via the manifest API and walks an admin through the token collection flow. Requires an App Configuration Token.
+
+**Important:** App Configuration Tokens expire after 12 hours. The refresh token can renew them via `tooling.tokens.rotate`, but if slackline hasn't been used for >12 hours, it auto-rotates on next run. If the refresh token itself has expired (after extended inactivity), `create` detects this and prompts the admin to re-generate at api.slack.com. This is NOT a one-time setup — it's a recurring (but infrequent) tax for the admin who provisions bots.
 
 **First-time bootstrap:**
 ```
@@ -68,7 +92,7 @@ Paste your refresh token (starts with xoxe-): xoxe-████
 
 **Per-bot creation:**
 ```
-$ slackline create --name "my-bot" --workspace "My Workspace"
+$ slackline create --name "my-bot"
 
 Refreshing config token... ✓
 Creating Slack app "my-bot"... ✓ (app_id: A0123ABCDEF)
@@ -89,14 +113,17 @@ Step 3: Paste App Token (xapp-)
 ✓ my-bot ready. Config written to ~/.config/slackline/config.json
 ```
 
+Note: if the workspace has app approval enabled, the install step may require admin approval first. `create` detects this and prints guidance.
+
 **Manifest template** embedded in the binary with scopes:
 - `chat:write`, `channels:read`, `groups:read`, `channels:history`, `groups:history`
-- `app_mentions:read`, `im:history`, `reactions:read` (for Socket Mode events)
+- `app_mentions:read`, `im:history`, `im:read`, `reactions:read` (for Socket Mode events)
+- `users:read` (for user ID → display name resolution)
 
 Socket Mode enabled: `settings.socket_mode_enabled: true`
 Event subscriptions: `app_mention`, `message.im`, `reaction_added`
 
-Config token is auto-rotated via `tooling.tokens.rotate` before each creation run.
+The `--workspace` flag is a label written to the config file for display purposes. The workspace is determined by the config token, not this flag.
 
 ### `slackline init` — Configure a Machine (Developer)
 
@@ -112,6 +139,10 @@ App Token (xapp-): xapp-████
   Bot: my-bot (via auth.test)
   Workspace: My Workspace
 ```
+
+Token prefix validation: rejects tokens that don't start with the expected prefix (`xoxb-` for bot, `xapp-` for app) and tells the user what's wrong.
+
+**Migration from slackcli:** Existing `xoxb-` tokens from slackcli are reusable — they're scoped to the Slack app, not the CLI tool. `init` accepts them directly. Users don't need to re-provision.
 
 ### `slackline send` — Send a Message
 
@@ -131,10 +162,16 @@ Deploy complete! All tests passing!
 EOF
 ```
 
+If `--message` is omitted and stdin is a TTY (not piped), print usage error and exit 4. Don't block waiting for input.
+
+Messages are sent as-is — Slack will parse mrkdwn formatting (`*bold*`, `_italic_`, etc.) automatically. No Block Kit support in v1.
+
 **Output:**
 ```json
-{"ok":true,"channel":"C01OPS12345","ts":"1769756026.624319"}
+{"ok":true,"channel":"C01OPS12345","ts":"1769756026.624319","thread_ts":"1769756026.624319"}
 ```
+
+`thread_ts` is included when the message is a thread reply.
 
 ### `slackline read` — Read Messages
 
@@ -143,6 +180,10 @@ slackline read --channel "#ops" --limit 10
 slackline read --channel "#ops" --thread 1769756026.624319
 slackline read --channel "#ops" --since 2026-03-16T10:00:00Z
 ```
+
+`--since` accepts ISO 8601 timestamps, converted internally to Unix epoch for `conversations.history`'s `oldest` parameter. Results are returned in chronological order (oldest first), reversing Slack's default reverse-chronological order.
+
+`--limit` caps total messages returned. The implementation paginates internally if needed (Slack returns max 100 per call). Default limit: 20.
 
 **Output** is JSONL — one message per line, compact, nulls/empty fields stripped:
 ```json
@@ -156,7 +197,17 @@ slackline read --channel "#ops" --since 2026-03-16T10:00:00Z
 echo 'Ready to deploy?' | slackline ask --channel "#ops" --timeout 300 --poll 10
 ```
 
-Sends the message, polls the thread every `--poll` seconds (default 10), prints replies when someone responds. Exits 0 on reply, 1 on timeout (default 300s).
+Sends the message, polls the thread every `--poll` seconds (default 10) via `conversations.replies`.
+
+**What counts as a reply:**
+- Messages in the thread from any user OTHER than the bot itself (filtered by bot user ID from `auth.test`)
+- Bot messages from other integrations DO count
+- Reactions do not count
+- Thread broadcasts count (they appear in `conversations.replies`)
+
+**Multiple replies:** When one or more replies are detected, ALL new replies are printed as JSONL to stdout, then the command exits 0. It does not wait for additional replies — first batch wins.
+
+Exits 1 on timeout (default 300s).
 
 ### `slackline listen` — Real-Time Event Stream
 
@@ -173,7 +224,21 @@ slackline listen
 {"type":"reaction","channel":"C01OPS12345","user":"U0123","emoji":"eyes","item_ts":"1769756026.624319"}
 ```
 
-**Event types (v1):** `mention`, `dm`, `reaction`
+**Event types (v1):**
+
+| Type | Fields (guaranteed) | Optional Fields |
+|------|-------------------|-----------------|
+| `mention` | `type`, `channel`, `user`, `text`, `ts` | `thread_ts` |
+| `dm` | `type`, `channel`, `user`, `text`, `ts` | `thread_ts` |
+| `reaction` | `type`, `channel`, `user`, `emoji`, `item_ts` | |
+
+Note: `reaction` events contain only the emoji and the timestamp of the reacted-to message. They do NOT include the message text. The consumer must call `slackline read` if it needs the message content.
+
+**Self-message filtering:** Events originating from the bot itself are silently dropped. This prevents infinite loops where the agent hears its own messages and responds to them.
+
+**Message edits and deletes:** Dropped in v1. Only new messages and reactions are emitted.
+
+**Event delivery guarantees:** Socket Mode is at-most-once during reconnections. Events arriving while the WebSocket is disconnected are lost. For critical workflows, prefer `slackline read --since` (polling) which provides durable history. `listen` is for responsiveness, not reliability.
 
 **Lifecycle:**
 - Runs until stdin closes or SIGTERM/SIGINT
@@ -186,9 +251,11 @@ slackline listen
 
 ```bash
 slackline channels          # channels the bot is in
-slackline channels --all    # all visible channels
+slackline channels --all    # all public channels + private channels bot is in
 slackline channels --json   # JSON output
 ```
+
+Note: `--all` lists all public channels plus private channels the bot has been invited to. It cannot see private channels it's not a member of — this is a Slack permission constraint.
 
 **Default output:**
 ```
@@ -207,16 +274,20 @@ App Token: xapp-...XXXX (valid)
 Config:    ~/.config/slackline/config.json
 ```
 
-Validates tokens by calling `auth.test` (bot token) and `apps.connections.open` (app token).
+Validates bot token via `auth.test`. App token validation uses `auth.test` with the app token (not `apps.connections.open`, which has the side effect of opening a WebSocket connection).
 
 ## Channel Resolution
 
 All commands accepting `--channel` resolve dynamically:
-- `#channel-name` → resolved via `conversations.list`
+- `#channel-name` → resolved via `conversations.list` (paginated, cached in-memory)
 - `C01OPS12345` → raw ID, used directly
-- `https://team.slack.com/archives/C01OPS12345` → ID extracted from URL
+- Slack URL → ID extracted from URL path
 
-Channel name → ID mappings cached in memory for the process lifetime. No on-disk cache.
+**Scaling note:** Channel name resolution via `conversations.list` requires paginating through all channels to find a match. This is fine for small workspaces but slow on large ones (1000+ channels). For automated workflows, prefer passing raw channel IDs. The skill should teach agents to resolve a channel name once via `slackline channels` and reuse the ID.
+
+Channel name → ID mappings cached in memory for the process lifetime. No on-disk cache — keeps things simple and avoids stale mappings.
+
+**Ambiguous matches:** If multiple channels match the same name (e.g., archived + active), prefer the active (non-archived) channel. If still ambiguous, error with the list of matches and ask the user to pass a channel ID instead.
 
 ## Config File
 
@@ -224,6 +295,7 @@ Located at `~/.config/slackline/config.json` (file `0600`, directory `0700`):
 
 ```json
 {
+  "version": 1,
   "workspace": {
     "name": "My Workspace",
     "team_id": "T012AB3CD45",
@@ -238,7 +310,11 @@ Located at `~/.config/slackline/config.json` (file `0600`, directory `0700`):
 }
 ```
 
-Provisioning credentials (`config_token`, `refresh_token`) are only written when `slackline create` is run. They are not required for normal operation — `send`, `read`, `ask`, `listen`, and `channels` only need the `bot` section.
+The `version` field enables future config migrations without guessing the schema.
+
+Provisioning credentials (`config_token`, `refresh_token`) are only written when `slackline create` is run, in a separate file (`~/.config/slackline/provision.json`). They are admin-level credentials that can create new apps and should not be distributed to developer machines.
+
+Normal operation (`send`, `read`, `ask`, `listen`, `channels`) only needs the `bot` section.
 
 **Future improvement:** Token storage should migrate to system keyring (macOS Keychain, Linux libsecret) or encrypted file for better security. The config module should be designed with a storage backend interface to make this swap straightforward.
 
@@ -251,15 +327,19 @@ The `slack-messaging` skill is replaced with a `slackline` skill that teaches ag
 name: slackline
 description: Use when asked to send or read Slack messages, check Slack channels, listen for mentions, or interact with a Slack workspace.
 user-invocable: false
-allowed-tools: Bash(slackline:*)
+allowed-tools: Bash(slackline:*, echo:*, cat:*)
 ---
 ```
 
+Note: `allowed-tools` includes `echo` and `cat` to support the stdin piping pattern (`echo 'msg' | slackline send`). Without these, the pipe-based approach for avoiding shell escaping would be blocked.
+
 **Key properties:**
-- No hardcoded channel table — agents use `slackline channels` for discovery
+- No hardcoded channel table — agents use `slackline channels` for discovery, then reuse IDs
 - No auth instructions — assumes slackline is configured
 - Documents stdin pattern for messages with special characters
 - Documents when to use `ask` vs `send` + `read` vs `listen`
+- Documents error exit codes and how to handle failures
+- The full skill body content is defined during implementation, not in this spec
 
 ## Cross-Platform
 
@@ -271,7 +351,7 @@ Distributed as precompiled binaries via GitHub Releases + `go install`.
 
 ## Dependencies
 
-- `github.com/slack-go/slack` — Slack API client + Socket Mode
+- `github.com/slack-go/slack` — Slack API client + Socket Mode (pinned version)
 - `github.com/spf13/cobra` — CLI framework
 - Go standard library for everything else (JSON, HTTP, OS, signals)
 
@@ -291,6 +371,8 @@ No CGo, no system library dependencies. Static binary.
 | No real-time events | `slackline listen` |
 | No provisioning automation | `slackline create` |
 
+Existing `xoxb-` tokens from slackcli are reusable via `slackline init`.
+
 ## Out of Scope (v1)
 
 - Multi-bot management in a single config (by design — one identity per install)
@@ -298,5 +380,7 @@ No CGo, no system library dependencies. Static binary.
 - File uploads/downloads
 - Slack workflow/automation triggers
 - Message formatting beyond plain text (Block Kit etc.)
-- Token rotation for bot tokens (xoxb tokens don't expire)
+- Token rotation for bot tokens (xoxb tokens don't expire by default; handle `token_revoked` errors gracefully)
 - Batch app pool provisioning
+- DM sending (receiving DMs via `listen` is supported; initiating DMs requires `conversations.open` + additional scopes, deferred to v2)
+- Message edit/delete events in `listen`
