@@ -91,10 +91,10 @@ Step 3: Paste App Token (xapp-)
 
 **Manifest template** embedded in the binary with scopes:
 - `chat:write`, `channels:read`, `groups:read`, `channels:history`, `groups:history`
-- `app_mentions:read`, `im:history` (for Socket Mode events)
+- `app_mentions:read`, `im:history`, `reactions:read` (for Socket Mode events)
 
 Socket Mode enabled: `settings.socket_mode_enabled: true`
-Event subscriptions: `app_mention`, `message.im`
+Event subscriptions: `app_mention`, `message.im`, `reaction_added`
 
 Config token is auto-rotated via `tooling.tokens.rotate` before each creation run.
 
