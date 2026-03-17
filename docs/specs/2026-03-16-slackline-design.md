@@ -15,10 +15,6 @@ Slackline solves this with:
 - Socket Mode listening for real-time @mentions and DMs
 - Stdin-based message input to avoid shell escaping issues
 
-## Linear Ticket
-
-[REDACTED: Self-service Slack bot provisioning for Claude instances](https://linear.app/prime-radiant/issue/REDACTED/self-service-slack-bot-provisioning-for-claude-instances)
-
 ## Architecture
 
 Single Go binary using Cobra for subcommands and `slack-go/slack` for all Slack API interaction. One binary, one config, one bot identity per installation.
