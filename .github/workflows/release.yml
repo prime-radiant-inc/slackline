@@ -25,9 +25,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build
-        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.version=${{ github.ref_name }}" -o ${{ matrix.binary }} .
+        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.version=${{ github.ref_name }}" -o "${{ matrix.binary }}" .
       - name: Sanity check
-        run: file ${{ matrix.binary }}
+        run: file "${{ matrix.binary }}"
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:

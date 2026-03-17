@@ -28,8 +28,8 @@ case "$ARCH" in
 esac
 
 # Only darwin/arm64 and linux/amd64 are supported
-if [ "$os" = "linux" ] && [ "$arch" = "arm64" ]; then
-  echo "linux/arm64 is not supported. Supported targets: darwin/arm64, linux/amd64." >&2
+if { [ "$os" = "linux" ] && [ "$arch" = "arm64" ]; } || { [ "$os" = "darwin" ] && [ "$arch" = "amd64" ]; }; then
+  echo "${os}/${arch} is not supported. Supported targets: darwin/arm64, linux/amd64." >&2
   exit 1
 fi
 
