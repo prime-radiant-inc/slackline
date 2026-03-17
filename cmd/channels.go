@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -15,16 +16,6 @@ var (
 	channelsAll  bool
 	channelsJSON bool
 )
-
-// isAuthError returns true if the Slack API error indicates an auth failure.
-// shared with send.go
-func isAuthError(err string) bool {
-	switch err {
-	case "invalid_auth", "account_inactive", "token_revoked", "not_authed":
-		return true
-	}
-	return false
-}
 
 var channelsCmd = &cobra.Command{
 	Use:   "channels",
@@ -51,7 +42,7 @@ var channelsCmd = &cobra.Command{
 			}
 			channels, nextCursor, err := client.GetConversations(params)
 			if err != nil {
-				if slackErr, ok := err.(slack.SlackErrorResponse); ok && isAuthError(slackErr.Err) {
+				if slackErr, ok := err.(slack.SlackErrorResponse); ok && isAuthError(errors.New(slackErr.Err)) {
 					return errs.AuthError(slackErr.Err)
 				}
 				return &errs.SlackError{Code: errs.SlackAPI, Err: "channels_failed", Detail: err.Error()}

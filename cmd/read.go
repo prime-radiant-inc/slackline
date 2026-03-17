@@ -34,22 +34,11 @@ var readCmd = &cobra.Command{
 }
 
 // messageOutput is the JSONL output format for each message.
-// shared with send.go — deduplicate on merge
 type messageOutput struct {
 	TS       string `json:"ts"`
 	User     string `json:"user"`
 	Text     string `json:"text"`
 	ThreadTS string `json:"thread_ts,omitempty"`
-}
-
-// isAuthError returns true if the error represents a Slack auth failure.
-// shared with send.go — deduplicate on merge
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return msg == "token_revoked" || msg == "invalid_auth" || msg == "not_authed" || msg == "account_inactive"
 }
 
 func runRead(cmd *cobra.Command, args []string) error {
