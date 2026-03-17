@@ -98,13 +98,3 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
-
-// isAuthError checks if a Slack API error is an authentication failure.
-// shared with send.go
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return msg == "token_revoked" || msg == "invalid_auth" || msg == "not_authed" || msg == "account_inactive"
-}

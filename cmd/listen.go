@@ -45,11 +45,3 @@ func runListen(cmd *cobra.Command, args []string) error {
 	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, os.Stdout, os.Stderr)
 	return listener.Run()
 }
-
-// isAuthError checks if a Slack API error is an authentication failure.
-// Defined here because send.go (parallel wave) defines its own copy — these
-// will be deduplicated when waves are merged.
-func isAuthError(err error) bool {
-	msg := err.Error()
-	return msg == "invalid_auth" || msg == "token_revoked" || msg == "not_authed" || msg == "account_inactive"
-}

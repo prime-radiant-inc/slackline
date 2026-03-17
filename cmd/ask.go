@@ -130,7 +130,7 @@ func runAsk(cmd *cobra.Command, args []string) error {
 
 		if len(replies) > 0 {
 			for _, m := range replies {
-				messageOutput(os.Stdout, m)
+				writeMessage(os.Stdout, m)
 			}
 			return nil
 		}
@@ -138,7 +138,6 @@ func runAsk(cmd *cobra.Command, args []string) error {
 }
 
 // isAuthError returns true if the error indicates an authentication failure.
-// shared with send.go
 func isAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -150,9 +149,8 @@ func isAuthError(err error) bool {
 		strings.Contains(msg, "account_inactive")
 }
 
-// messageOutput writes a message as a compact JSONL line to w.
-// shared with send.go
-func messageOutput(w io.Writer, m goslack.Message) {
+// writeMessage writes a message as a compact JSONL line to w.
+func writeMessage(w io.Writer, m goslack.Message) {
 	obj := map[string]string{
 		"ts":   m.Timestamp,
 		"user": m.User,

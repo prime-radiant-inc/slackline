@@ -205,13 +205,3 @@ func createAppViaManifest(apiBase, configToken, manifestJSON string) (string, er
 	}
 	return result.AppID, nil
 }
-
-// isAuthError checks if a Slack API error is an authentication failure.
-// shared with send.go — both files define this until consolidated into a shared location.
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return msg == "token_revoked" || msg == "invalid_auth" || msg == "not_authed" || msg == "account_inactive"
-}
