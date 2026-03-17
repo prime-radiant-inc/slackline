@@ -1,6 +1,10 @@
 # Binary
 slackline
 
+# Worktrees
+.worktrees/
+worktrees/
+
 # Go
 *.exe
 *.test
