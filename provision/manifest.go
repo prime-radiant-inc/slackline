@@ -3,8 +3,20 @@ package provision
 // Manifest represents a Slack app manifest for provisioning bot identities.
 type Manifest struct {
 	DisplayInfo DisplayInfo `json:"display_information"`
+	Features    Features    `json:"features"`
 	Settings    Settings    `json:"settings"`
 	OAuthConfig OAuthConfig `json:"oauth_config"`
+}
+
+// Features holds app feature configuration including the bot user identity.
+type Features struct {
+	BotUser BotUser `json:"bot_user"`
+}
+
+// BotUser defines the bot's display name in Slack.
+type BotUser struct {
+	DisplayName  string `json:"display_name"`
+	AlwaysOnline bool   `json:"always_online"`
 }
 
 // DisplayInfo holds the app's display name and description.
@@ -41,6 +53,12 @@ func GenerateManifest(appName string) *Manifest {
 		DisplayInfo: DisplayInfo{
 			Name:        appName,
 			Description: "Slackline bot identity for AI agents",
+		},
+		Features: Features{
+			BotUser: BotUser{
+				DisplayName:  appName,
+				AlwaysOnline: false,
+			},
 		},
 		Settings: Settings{
 			SocketModeEnabled: true,
