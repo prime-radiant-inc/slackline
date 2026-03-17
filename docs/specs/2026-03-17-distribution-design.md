@@ -42,6 +42,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - run: go vet ./...
       - run: go test ./...
       - uses: golangci/golangci-lint-action@v6
         with:
@@ -78,6 +79,7 @@ jobs:
         with:
           go-version-file: go.mod
       - run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.version=${{ github.ref_name }}" -o ${{ matrix.binary }} .
+      - run: file ${{ matrix.binary }}   # sanity check before upload
       - uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.binary }}
@@ -85,7 +87,9 @@ jobs:
 
 ### 3. Version Embedding
 
-`main.go` declares `var version = "dev"`. The release workflow injects the tag via `-ldflags "-X main.version=..."`. A `--version` flag on the root command prints it.
+`main.go` declares `var version = "dev"` in `package main`. At startup, `main()` calls `cmd.SetVersion(version)` which stores it in `package cmd` for the `--version` flag. The linker target is `main.version`, so the build flag is correct as written: `-ldflags "-X main.version=${{ github.ref_name }}"`.
+
+`cmd/root.go` exposes `func SetVersion(v string)` and wires a `--version` flag (or `cobra.Command.Version`) on the root command.
 
 ### 4. Install Script (`install.sh`)
 
@@ -114,6 +118,7 @@ release:
 ifndef VERSION
 	$(error VERSION is required. Usage: make release VERSION=0.1.0)
 endif
+	git diff --exit-code HEAD || (echo "Uncommitted changes — commit first" && exit 1)
 	git tag v$(VERSION) && git push origin v$(VERSION)
 ```
 
