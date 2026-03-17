@@ -16,5 +16,5 @@ release:
 ifndef VERSION
 	$(error VERSION is required. Usage: make release VERSION=0.1.0)
 endif
-	git diff --exit-code HEAD && git diff --cached --exit-code || (echo "Uncommitted changes — commit first" && exit 1)
+	if ! git diff --exit-code HEAD || ! git diff --cached --exit-code; then echo "Uncommitted changes — commit first"; false; fi
 	git tag v$(VERSION) && git push origin v$(VERSION)
