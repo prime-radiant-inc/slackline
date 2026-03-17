@@ -4,8 +4,8 @@ import (
 	"errors"
 	"os"
 
-	"github.com/prime-radiant/slackline/config"
-	"github.com/prime-radiant/slackline/errs"
+	"github.com/prime-radiant-inc/slackline/config"
+	"github.com/prime-radiant-inc/slackline/errs"
 	"github.com/spf13/cobra"
 )
 

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	slackpkg "github.com/prime-radiant/slackline/slack"
+	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	goslack "github.com/slack-go/slack"
 )
 
