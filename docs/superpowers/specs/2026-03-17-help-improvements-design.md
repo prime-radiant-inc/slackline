@@ -194,7 +194,7 @@ Environment variables (non-interactive mode):
   SLACKLINE_WORKSPACE_URL Workspace URL, e.g. https://myteam.slack.com (optional)
 
 If both SLACKLINE_BOT_TOKEN and SLACKLINE_APP_TOKEN are set, all stdin prompts are skipped.
-If exactly one is set, init exits with a usage error (exit 4).
+If exactly one is set, init exits with a usage error (exit 2).
 Token validation via auth.test is performed in both interactive and non-interactive modes.
 
 Exit codes: 0 success, 2 usage, 3 config, 4 auth
@@ -222,7 +222,7 @@ Example:
 `runInit` in `cmd/initcmd.go` checks env vars **before** touching stdin:
 
 1. Read `SLACKLINE_BOT_TOKEN`, `SLACKLINE_APP_TOKEN`, `SLACKLINE_WORKSPACE_URL` from env.
-2. If both bot and app tokens are set: use them directly. Do not read from stdin at all. Apply the same prefix validation as the interactive path: bot token must start with `xoxb-`, app token must start with `xapp-`. Return `usage_error` (exit 4) if either prefix check fails.
+2. If both bot and app tokens are set: use them directly. Do not read from stdin at all. Apply the same prefix validation as the interactive path: bot token must start with `xoxb-`, app token must start with `xapp-`. Return `usage_error` (exit 2) if either prefix check fails.
 3. If exactly one is set: return `&errs.SlackError{Code: errs.Usage, Err: "missing_token", Detail: "set both SLACKLINE_BOT_TOKEN and SLACKLINE_APP_TOKEN for non-interactive mode"}`.
 4. If neither is set: fall through to existing interactive flow (no change).
 
