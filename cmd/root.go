@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
+	"github.com/prime-radiant/slackline/errs"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,12 @@ func init() {
 // Execute runs the root command and returns an exit code.
 func Execute() int {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		var se *errs.SlackError
+		if errors.As(err, &se) {
+			errs.WriteError(os.Stderr, se.Err, se.Detail)
+			return se.ExitCode()
+		}
+		errs.WriteError(os.Stderr, "unknown_error", err.Error())
 		return 1
 	}
 	return 0
