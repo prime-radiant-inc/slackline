@@ -35,11 +35,15 @@ fi
 
 ASSET="${BINARY}-${os}-${arch}"
 
-# Fetch latest release tag (no jq required)
+# Fetch latest release tag: prefer gh (works for private repos), fall back to curl
 echo "Fetching latest release..."
-TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-  | grep '"tag_name"' \
-  | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+  TAG=$(gh release view --repo "${REPO}" --json tagName -q .tagName 2>/dev/null)
+else
+  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    | grep '"tag_name"' \
+    | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+fi
 
 if [ -z "$TAG" ]; then
   echo "Failed to fetch latest release tag." >&2
@@ -51,7 +55,14 @@ echo "Installing ${BINARY} ${TAG} (${os}/${arch})..."
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
-curl -fsSL "https://github.com/${REPO}/releases/download/${TAG}/${ASSET}" -o "$TMP"
+# Download: prefer gh (works for private repos), fall back to curl (works for public repos)
+if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+  echo "Downloading via gh..."
+  gh release download "${TAG}" --repo "${REPO}" --pattern "${ASSET}" --output "$TMP" --clobber
+else
+  echo "Downloading via curl..."
+  curl -fsSL "https://github.com/${REPO}/releases/download/${TAG}/${ASSET}" -o "$TMP"
+fi
 
 # Validate: non-empty and not an HTML error page
 if [ ! -s "$TMP" ]; then
