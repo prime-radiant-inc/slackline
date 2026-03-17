@@ -12,11 +12,13 @@ func TestRotateConfigToken_Success(t *testing.T) {
 		if r.URL.Path != "/api/tooling.tokens.rotate" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"ok":            true,
 			"token":         "xoxe-new-config-token",
 			"refresh_token": "xoxe-new-refresh-token",
-		})
+		}); err != nil {
+			t.Errorf("Encode: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -34,10 +36,12 @@ func TestRotateConfigToken_Success(t *testing.T) {
 
 func TestRotateConfigToken_Expired(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"ok":    false,
 			"error": "token_expired",
-		})
+		}); err != nil {
+			t.Errorf("Encode: %v", err)
+		}
 	}))
 	defer server.Close()
 

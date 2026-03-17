@@ -53,7 +53,7 @@ func isChannelID(s string) bool {
 		return false
 	}
 	for _, c := range s[1:] {
-		if !((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
 			return false
 		}
 	}

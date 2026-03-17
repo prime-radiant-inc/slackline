@@ -12,17 +12,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var readChannel string
-var readLimit int
-var readThread string
-var readSince string
+var (
+	readChannel string
+	readLimit   int
+	readThread  string
+	readSince   string
+)
 
 func init() {
 	readCmd.Flags().StringVar(&readChannel, "channel", "", "channel name (#ops), ID (C...), or Slack URL (required)")
 	readCmd.Flags().IntVar(&readLimit, "limit", 20, "maximum number of messages to return")
 	readCmd.Flags().StringVar(&readThread, "thread", "", "thread timestamp to read replies from")
 	readCmd.Flags().StringVar(&readSince, "since", "", "only return messages after this ISO 8601 timestamp")
-	readCmd.MarkFlagRequired("channel")
+	_ = readCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(readCmd)
 }
 

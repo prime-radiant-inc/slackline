@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	goslack "github.com/slack-go/slack"
 	"github.com/prime-radiant/slackline/errs"
 	slackpkg "github.com/prime-radiant/slackline/slack"
+	goslack "github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 )
 
@@ -160,5 +160,5 @@ func writeMessage(w io.Writer, m goslack.Message) {
 		obj["thread_ts"] = m.ThreadTimestamp
 	}
 	data, _ := json.Marshal(obj)
-	fmt.Fprintln(w, string(data))
+	_, _ = fmt.Fprintln(w, string(data))
 }

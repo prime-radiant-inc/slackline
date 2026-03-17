@@ -96,13 +96,13 @@ func writeChannelsJSON(channels []slack.Channel) error {
 
 func writeChannelsTable(channels []slack.Channel) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tPURPOSE")
+	_, _ = fmt.Fprintln(w, "ID\tNAME\tPURPOSE")
 	for _, ch := range channels {
 		purpose := ch.Purpose.Value
 		if len(purpose) > 60 {
 			purpose = purpose[:57] + "..."
 		}
-		fmt.Fprintf(w, "%s\t#%s\t%s\n", ch.ID, ch.Name, purpose)
+		_, _ = fmt.Fprintf(w, "%s\t#%s\t%s\n", ch.ID, ch.Name, purpose)
 	}
 	return w.Flush()
 }

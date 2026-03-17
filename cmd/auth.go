@@ -72,11 +72,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		workspaceDisplay = fmt.Sprintf("%s (%s)", workspace, teamID)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Bot:       %s\n", botName)
-	fmt.Fprintf(cmd.OutOrStdout(), "Workspace: %s\n", workspaceDisplay)
-	fmt.Fprintf(cmd.OutOrStdout(), "Bot Token: %s %s\n", maskToken(cfg.Bot.BotToken), botStatus)
-	fmt.Fprintf(cmd.OutOrStdout(), "App Token: %s %s\n", maskToken(cfg.Bot.AppToken), appStatus)
-	fmt.Fprintf(cmd.OutOrStdout(), "Config:    %s\n", cfgPath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Bot:       %s\n", botName)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workspace: %s\n", workspaceDisplay)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Bot Token: %s %s\n", maskToken(cfg.Bot.BotToken), botStatus)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "App Token: %s %s\n", maskToken(cfg.Bot.AppToken), appStatus)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Config:    %s\n", cfgPath)
 
 	return nil
 }

@@ -70,7 +70,7 @@ func LoadFile(path string) (*Config, error) {
 }
 
 func Save(cfg *Config, path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -78,7 +78,7 @@ func Save(cfg *Config, path string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func LoadProvision(path string) (*ProvisionConfig, error) {
@@ -94,7 +94,7 @@ func LoadProvision(path string) (*ProvisionConfig, error) {
 }
 
 func SaveProvision(cfg *ProvisionConfig, path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create provision dir: %w", err)
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -102,7 +102,7 @@ func SaveProvision(cfg *ProvisionConfig, path string) error {
 		return fmt.Errorf("marshal provision config: %w", err)
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func applyEnvOverrides(cfg *Config) {
