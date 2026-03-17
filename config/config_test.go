@@ -229,6 +229,74 @@ func TestSLACKLINE_CONFIG_EnvVar(t *testing.T) {
 	}
 }
 
+func TestDefaultProvisionPath(t *testing.T) {
+	path := DefaultProvisionPath()
+	if !filepath.IsAbs(path) {
+		t.Errorf("DefaultProvisionPath() = %q, want absolute path", path)
+	}
+	if filepath.Base(filepath.Dir(path)) != "slackline" || filepath.Base(path) != "provision.json" {
+		t.Errorf("DefaultProvisionPath() = %q, want path ending with slackline/provision.json", path)
+	}
+}
+
+func TestLoadProvision_NotFound(t *testing.T) {
+	_, err := LoadProvision("/nonexistent/path/provision.json")
+	if err == nil {
+		t.Fatal("expected error for missing file, got nil")
+	}
+}
+
+func TestLoadProvision_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "provision.json")
+
+	if err := os.WriteFile(path, []byte("not json {{{"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	_, err := LoadProvision(path)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON, got nil")
+	}
+}
+
+func TestSaveProvision_FilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "provision.json")
+
+	cfg := &ProvisionConfig{
+		ConfigToken:  "cfg-token",
+		RefreshToken: "refresh-token",
+	}
+	if err := SaveProvision(cfg, path); err != nil {
+		t.Fatalf("SaveProvision: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+
+	perm := info.Mode().Perm()
+	if perm != 0o600 {
+		t.Errorf("file permissions = %o, want 0600", perm)
+	}
+}
+
+func TestLoad_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	if err := os.WriteFile(path, []byte("not valid json!!!"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON, got nil")
+	}
+}
+
 func TestSave_JSONFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")

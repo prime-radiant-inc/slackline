@@ -1,0 +1,388 @@
+package cmd
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"testing"
+
+	slackpkg "github.com/prime-radiant/slackline/slack"
+	goslack "github.com/slack-go/slack"
+)
+
+// fakeSlackAPI implements slackpkg.SlackAPI for testing cmd helpers.
+type fakeSlackAPI struct {
+	historyResp *goslack.GetConversationHistoryResponse
+	historyErr  error
+	// capturedHistoryParams records the last GetConversationHistory call.
+	capturedHistoryParams *goslack.GetConversationHistoryParameters
+
+	repliesMessages []goslack.Message
+	repliesHasMore  bool
+	repliesCursor   string
+	repliesErr      error
+	// capturedRepliesParams records the last GetConversationReplies call.
+	capturedRepliesParams *goslack.GetConversationRepliesParameters
+}
+
+func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
+	return &goslack.AuthTestResponse{}, nil
+}
+
+func (f *fakeSlackAPI) PostMessage(channelID string, options ...goslack.MsgOption) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeSlackAPI) GetConversationHistory(params *goslack.GetConversationHistoryParameters) (*goslack.GetConversationHistoryResponse, error) {
+	f.capturedHistoryParams = params
+	if f.historyErr != nil {
+		return nil, f.historyErr
+	}
+	return f.historyResp, nil
+}
+
+func (f *fakeSlackAPI) GetConversationReplies(params *goslack.GetConversationRepliesParameters) ([]goslack.Message, bool, string, error) {
+	f.capturedRepliesParams = params
+	if f.repliesErr != nil {
+		return nil, false, "", f.repliesErr
+	}
+	return f.repliesMessages, f.repliesHasMore, f.repliesCursor, nil
+}
+
+func (f *fakeSlackAPI) GetConversations(params *goslack.GetConversationsParameters) ([]goslack.Channel, string, error) {
+	return nil, "", nil
+}
+
+// Compile-time check that fakeSlackAPI satisfies slackpkg.SlackAPI.
+var _ slackpkg.SlackAPI = (*fakeSlackAPI)(nil)
+
+// Common test timestamp constants.
+const (
+	ts1 = "1.0"
+	ts2 = "2.0"
+	ts3 = "3.0"
+)
+
+// --- isAuthError tests ---
+
+func TestIsAuthError_TokenRevoked(t *testing.T) {
+	if !isAuthError(errors.New("token_revoked")) {
+		t.Error("expected isAuthError to return true for token_revoked")
+	}
+}
+
+func TestIsAuthError_InvalidAuth(t *testing.T) {
+	if !isAuthError(errors.New("invalid_auth")) {
+		t.Error("expected isAuthError to return true for invalid_auth")
+	}
+}
+
+func TestIsAuthError_NotAuthed(t *testing.T) {
+	if !isAuthError(errors.New("not_authed")) {
+		t.Error("expected isAuthError to return true for not_authed")
+	}
+}
+
+func TestIsAuthError_AccountInactive(t *testing.T) {
+	if !isAuthError(errors.New("account_inactive")) {
+		t.Error("expected isAuthError to return true for account_inactive")
+	}
+}
+
+func TestIsAuthError_NormalError(t *testing.T) {
+	if isAuthError(errors.New("channel_not_found")) {
+		t.Error("expected isAuthError to return false for channel_not_found")
+	}
+}
+
+func TestIsAuthError_Nil(t *testing.T) {
+	if isAuthError(nil) {
+		t.Error("expected isAuthError to return false for nil")
+	}
+}
+
+// --- maskToken tests ---
+
+func TestMaskToken_Empty(t *testing.T) {
+	got := maskToken("")
+	if got != "(none)" {
+		t.Errorf("maskToken(\"\") = %q, want %q", got, "(none)")
+	}
+}
+
+func TestMaskToken_Short(t *testing.T) {
+	// 5 chars: first 4 + "-..."
+	got := maskToken("xoxb-")
+	if got != "xoxb-..." {
+		t.Errorf("maskToken(\"xoxb-\") = %q, want %q", got, "xoxb-...")
+	}
+}
+
+func TestMaskToken_VeryShort(t *testing.T) {
+	// 2 chars: first 2 (capped at len) + "-..."
+	got := maskToken("ab")
+	if got != "ab-..." {
+		t.Errorf("maskToken(\"ab\") = %q, want %q", got, "ab-...")
+	}
+}
+
+func TestMaskToken_Normal(t *testing.T) {
+	// 20 chars: first 5 + "..." + last 4
+	token := "xoxb-1234567890abcdef"
+	got := maskToken(token)
+	want := "xoxb-...cdef"
+	if got != want {
+		t.Errorf("maskToken(%q) = %q, want %q", token, got, want)
+	}
+}
+
+func TestMaskToken_ExactlyTen(t *testing.T) {
+	// 10 chars: first 5 + "..." + last 4 (overlap boundary)
+	token := "0123456789"
+	got := maskToken(token)
+	want := "01234...6789"
+	if got != want {
+		t.Errorf("maskToken(%q) = %q, want %q", token, got, want)
+	}
+}
+
+// --- fetchHistory tests ---
+
+func makeMessage(ts, user, text string) goslack.Message {
+	m := goslack.Message{}
+	m.Timestamp = ts
+	m.User = user
+	m.Text = text
+	return m
+}
+
+func TestFetchHistory_ChronologicalOrder(t *testing.T) {
+	// Slack returns reverse-chronological: newest first.
+	// fetchHistory should reverse to chronological: oldest first.
+	api := &fakeSlackAPI{
+		historyResp: &goslack.GetConversationHistoryResponse{
+			Messages: []goslack.Message{
+				makeMessage(ts3, "U1", "third"),
+				makeMessage(ts2, "U1", "second"),
+				makeMessage(ts1, "U1", "first"),
+			},
+		},
+	}
+
+	msgs, err := fetchHistory(api, "C123", "", 10)
+	if err != nil {
+		t.Fatalf("fetchHistory returned error: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("fetchHistory returned %d messages, want 3", len(msgs))
+	}
+	if msgs[0].Timestamp != ts1 {
+		t.Errorf("msgs[0].Timestamp = %q, want %q", msgs[0].Timestamp, ts1)
+	}
+	if msgs[1].Timestamp != ts2 {
+		t.Errorf("msgs[1].Timestamp = %q, want %q", msgs[1].Timestamp, ts2)
+	}
+	if msgs[2].Timestamp != ts3 {
+		t.Errorf("msgs[2].Timestamp = %q, want %q", msgs[2].Timestamp, ts3)
+	}
+}
+
+func TestFetchHistory_RespectsLimit(t *testing.T) {
+	api := &fakeSlackAPI{
+		historyResp: &goslack.GetConversationHistoryResponse{
+			Messages: []goslack.Message{
+				makeMessage("5.0", "U1", "five"),
+				makeMessage("4.0", "U1", "four"),
+				makeMessage(ts3, "U1", "three"),
+				makeMessage(ts2, "U1", "two"),
+				makeMessage(ts1, "U1", "one"),
+			},
+		},
+	}
+
+	msgs, err := fetchHistory(api, "C123", "", 5)
+	if err != nil {
+		t.Fatalf("fetchHistory returned error: %v", err)
+	}
+	if len(msgs) != 5 {
+		t.Fatalf("fetchHistory returned %d messages, want 5", len(msgs))
+	}
+
+	// Also test that limit truncates.
+	msgs, err = fetchHistory(api, "C123", "", 3)
+	if err != nil {
+		t.Fatalf("fetchHistory returned error: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("fetchHistory returned %d messages, want 3", len(msgs))
+	}
+	// After reversal and truncation to 3, we should get the 3 newest in chronological order.
+	if msgs[0].Timestamp != ts3 {
+		t.Errorf("msgs[0].Timestamp = %q, want %q", msgs[0].Timestamp, ts3)
+	}
+}
+
+func TestFetchHistory_WithOldest(t *testing.T) {
+	api := &fakeSlackAPI{
+		historyResp: &goslack.GetConversationHistoryResponse{
+			Messages: []goslack.Message{
+				makeMessage(ts2, "U1", "second"),
+			},
+		},
+	}
+
+	_, err := fetchHistory(api, "C123", "1.5", 10)
+	if err != nil {
+		t.Fatalf("fetchHistory returned error: %v", err)
+	}
+	if api.capturedHistoryParams == nil {
+		t.Fatal("expected capturedHistoryParams to be set")
+	}
+	if api.capturedHistoryParams.Oldest != "1.5" {
+		t.Errorf("Oldest param = %q, want %q", api.capturedHistoryParams.Oldest, "1.5")
+	}
+}
+
+// --- fetchReplies tests ---
+
+func TestFetchReplies_ReturnsMessages(t *testing.T) {
+	api := &fakeSlackAPI{
+		repliesMessages: []goslack.Message{
+			makeMessage(ts1, "U1", "parent"),
+			makeMessage("1.1", "U2", "reply one"),
+			makeMessage("1.2", "U3", "reply two"),
+		},
+	}
+
+	msgs, err := fetchReplies(api, "C123", ts1, "", 10)
+	if err != nil {
+		t.Fatalf("fetchReplies returned error: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("fetchReplies returned %d messages, want 3", len(msgs))
+	}
+	if msgs[0].Timestamp != ts1 {
+		t.Errorf("msgs[0].Timestamp = %q, want %q", msgs[0].Timestamp, ts1)
+	}
+	if msgs[2].Timestamp != "1.2" {
+		t.Errorf("msgs[2].Timestamp = %q, want %q", msgs[2].Timestamp, "1.2")
+	}
+}
+
+func TestFetchReplies_RespectsLimit(t *testing.T) {
+	api := &fakeSlackAPI{
+		repliesMessages: []goslack.Message{
+			makeMessage(ts1, "U1", "parent"),
+			makeMessage("1.1", "U2", "reply one"),
+			makeMessage("1.2", "U3", "reply two"),
+			makeMessage("1.3", "U4", "reply three"),
+		},
+	}
+
+	msgs, err := fetchReplies(api, "C123", ts1, "", 2)
+	if err != nil {
+		t.Fatalf("fetchReplies returned error: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("fetchReplies returned %d messages, want 2", len(msgs))
+	}
+}
+
+// --- messageOutput JSONL tests ---
+
+func TestMessageOutput_JSONL(t *testing.T) {
+	out := messageOutput{
+		TS:   "123.456",
+		User: "U123",
+		Text: "hello world",
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if decoded["ts"] != "123.456" {
+		t.Errorf("ts = %v, want %q", decoded["ts"], "123.456")
+	}
+	if decoded["user"] != "U123" {
+		t.Errorf("user = %v, want %q", decoded["user"], "U123")
+	}
+	if decoded["text"] != "hello world" {
+		t.Errorf("text = %v, want %q", decoded["text"], "hello world")
+	}
+	// thread_ts should be omitted when empty.
+	if _, ok := decoded["thread_ts"]; ok {
+		t.Error("thread_ts should be omitted when empty")
+	}
+}
+
+func TestMessageOutput_JSONL_WithThreadTS(t *testing.T) {
+	out := messageOutput{
+		TS:       "123.456",
+		User:     "U123",
+		Text:     "reply",
+		ThreadTS: "100.000",
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if decoded["thread_ts"] != "100.000" {
+		t.Errorf("thread_ts = %v, want %q", decoded["thread_ts"], "100.000")
+	}
+}
+
+// --- writeMessage tests ---
+
+func TestWriteMessage_JSONL(t *testing.T) {
+	var buf bytes.Buffer
+	msg := goslack.Message{}
+	msg.Timestamp = ts1
+	msg.User = "U1"
+	msg.Text = "hello"
+
+	writeMessage(&buf, msg)
+
+	var decoded map[string]string
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if decoded["ts"] != ts1 {
+		t.Errorf("ts = %q, want %q", decoded["ts"], ts1)
+	}
+	if decoded["user"] != "U1" {
+		t.Errorf("user = %q, want %q", decoded["user"], "U1")
+	}
+	if decoded["text"] != "hello" {
+		t.Errorf("text = %q, want %q", decoded["text"], "hello")
+	}
+	if _, ok := decoded["thread_ts"]; ok {
+		t.Error("thread_ts should be absent when empty")
+	}
+}
+
+func TestWriteMessage_WithThreadTS(t *testing.T) {
+	var buf bytes.Buffer
+	msg := goslack.Message{}
+	msg.Timestamp = ts1
+	msg.User = "U1"
+	msg.Text = "reply"
+	msg.ThreadTimestamp = "0.5"
+
+	writeMessage(&buf, msg)
+
+	var decoded map[string]string
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if decoded["thread_ts"] != "0.5" {
+		t.Errorf("thread_ts = %q, want %q", decoded["thread_ts"], "0.5")
+	}
+}
