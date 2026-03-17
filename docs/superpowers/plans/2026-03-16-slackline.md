@@ -1,6 +1,6 @@
 # Slackline Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Executor:** superpowers:executing-waves
 
 **Goal:** Build a cross-platform Go CLI that gives AI agents a Slack identity — handling app provisioning, messaging, channel discovery, and real-time event listening via Socket Mode.
 
@@ -11,6 +11,25 @@
 **Spec:** `docs/specs/2026-03-16-slackline-design.md`
 
 **Linear:** PRI-722
+
+## Execution Summary
+
+- **Waves:** 5
+- **Total tasks:** 17
+- **Max parallel tasks:** 9 (Wave 4)
+- **Sequential time:** ~6h (17 tasks × ~20 min avg)
+- **Parallel time:** ~2h
+- **Time saved:** ~4h (67%)
+
+| Wave | Tasks | Parallel | What |
+|------|-------|----------|------|
+| 1 | T1 | 1 | Project scaffold (go.mod, root cmd) |
+| 2 | T2, T4, T11, T14 | 4 | Independent packages (errs, slack, listen, provision) |
+| 3 | T3, T5 | 2 | Config + channel resolution |
+| 4 | T6-T10, T12, T13, T15, T17 | 9 | All commands + polish |
+| 5 | T16 | 1 | Build verification |
+
+**Dependency analysis:** File overlap exists only on `cmd/root.go` (T1→T2→T3). All other dependencies are compile-time (import) ordering — each wave creates packages that later waves import. Wave boundaries ensure all imported packages exist before consumers run.
 
 ---
 
@@ -62,9 +81,11 @@ slackline/
 
 ---
 
-## Chunk 1: Foundation
+## Wave 1: Scaffold (1 task)
 
 ### Task 1: Project Scaffold
+
+**Dependencies:** None
 
 **Files:**
 - Create: `go.mod`
@@ -159,7 +180,11 @@ git commit -m "feat: project scaffold with cobra root command"
 
 ---
 
+## Wave 2: Independent Packages (parallel — 4 tasks)
+
 ### Task 2: Error Handling Package
+
+**Dependencies:** Task 1 (shares `cmd/root.go`)
 
 **Files:**
 - Create: `errs/errors.go`
@@ -376,7 +401,11 @@ git commit -m "feat: error handling package with exit codes and JSON output"
 
 ---
 
+## Wave 3: Config & Channel Resolution (parallel — 2 tasks)
+
 ### Task 3: Config Package
+
+**Dependencies:** Task 2 (shares `cmd/root.go`)
 
 **Files:**
 - Create: `config/config.go`
@@ -814,9 +843,9 @@ git commit -m "feat: config package with load/save and env var overrides"
 
 ---
 
-## Chunk 2: Slack Client & Channel Resolution
+### Task 4: Slack API Interface and Client Factory [Wave 2]
 
-### Task 4: Slack API Interface and Client Factory
+**Dependencies:** Task 1 (needs `go.mod`)
 
 **Files:**
 - Create: `slack/api.go`
@@ -910,7 +939,9 @@ git commit -m "feat: SlackAPI interface and client factory"
 
 ---
 
-### Task 5: Channel Resolution
+### Task 5: Channel Resolution [Wave 3]
+
+**Dependencies:** Task 4 (imports `slack/api.go`)
 
 **Files:**
 - Create: `slack/resolve.go`
@@ -1306,7 +1337,7 @@ git commit -m "feat: channel resolution with name/ID/URL support and caching"
 
 ---
 
-## Chunk 3: Core Commands
+## Wave 4: All Commands (parallel — 9 tasks)
 
 **TDD note for cmd layer:** The `cmd/` files are thin Cobra wrappers — most business logic lives in packages (`slack/`, `listen/`, `config/`, `errs/`) which are fully TDD'd. The command implementations below don't include separate test files because Cobra command handlers are hard to unit test without extracting every function. The implementer SHOULD extract testable helper functions where logic is non-trivial (e.g., `fetchHistory`, `fetchReplies`, `maskToken`, output formatting) and write tests for those. At minimum, test the output format for `send` (JSON) and `read` (JSONL) to ensure spec compliance.
 
@@ -1314,9 +1345,10 @@ git commit -m "feat: channel resolution with name/ID/URL support and caching"
 
 ### Task 6: `send` Command
 
+**Dependencies:** Tasks 2, 3, 4, 5 (imports `errs`, `config`, `slack`)
+
 **Files:**
 - Create: `cmd/send.go`
-- Modify: `cmd/root.go` (wire up exit code handling with `errs.SlackError`)
 
 The `send` command sends a message to a channel. Reads message from `--message` flag or stdin. Outputs JSON with `ts`, `channel`, and optionally `thread_ts`.
 
@@ -1468,6 +1500,8 @@ git commit -m "feat: send command with stdin support and channel resolution"
 ---
 
 ### Task 7: `read` Command
+
+**Dependencies:** Tasks 2, 3, 4, 5 (imports `errs`, `config`, `slack`)
 
 **Files:**
 - Create: `cmd/read.go`
@@ -1692,6 +1726,8 @@ git commit -m "feat: read command with JSONL output and pagination"
 
 ### Task 8: `channels` Command
 
+**Dependencies:** Tasks 2, 3, 4 (imports `errs`, `config`, `slack`)
+
 **Files:**
 - Create: `cmd/channels.go`
 
@@ -1831,6 +1867,8 @@ git commit -m "feat: channels command with table and JSON output"
 
 ### Task 9: `auth status` Command
 
+**Dependencies:** Tasks 2, 3, 4 (imports `errs`, `config`, `slack`)
+
 **Files:**
 - Create: `cmd/auth.go`
 
@@ -1946,9 +1984,9 @@ git commit -m "feat: auth status command with token validation"
 
 ---
 
-## Chunk 4: Interactive Commands
+### Task 10: `ask` Command [Wave 4]
 
-### Task 10: `ask` Command
+**Dependencies:** Tasks 2, 3, 4, 5 (imports `errs`, `config`, `slack`)
 
 **Files:**
 - Create: `cmd/ask.go`
@@ -2117,7 +2155,9 @@ git commit -m "feat: ask command with poll-based reply detection"
 
 ---
 
-### Task 11: Listen Events Package
+### Task 11: Listen Events Package [Wave 2]
+
+**Dependencies:** Task 1 (needs `go.mod`)
 
 **Files:**
 - Create: `listen/events.go`
@@ -2288,7 +2328,9 @@ git commit -m "feat: listen event types with JSONL marshaling"
 
 ---
 
-### Task 12: `listen` Command (Socket Mode)
+### Task 12: `listen` Command (Socket Mode) [Wave 4]
+
+**Dependencies:** Tasks 2, 3, 4, 11 (imports `errs`, `config`, `slack`, `listen`)
 
 **Files:**
 - Create: `listen/listener.go`
@@ -2538,9 +2580,9 @@ git commit -m "feat: listen command with Socket Mode event streaming"
 
 ---
 
-## Chunk 5: Provisioning & Setup
+### Task 13: `init` Command [Wave 4]
 
-### Task 13: `init` Command
+**Dependencies:** Tasks 2, 3, 4 (imports `errs`, `config`, `slack`)
 
 **Files:**
 - Create: `cmd/initcmd.go`
@@ -2668,7 +2710,9 @@ git commit -m "feat: init command for interactive token configuration"
 
 ---
 
-### Task 14: Manifest Template and Provision Tokens
+### Task 14: Manifest Template and Provision Tokens [Wave 2]
+
+**Dependencies:** Task 1 (needs `go.mod`)
 
 **Files:**
 - Create: `provision/manifest.go`
@@ -2971,7 +3015,9 @@ git commit -m "feat: app manifest template and config token rotation"
 
 ---
 
-### Task 15: `create` Command
+### Task 15: `create` Command [Wave 4]
+
+**Dependencies:** Tasks 2, 3, 4, 14 (imports `errs`, `config`, `slack`, `provision`)
 
 **Files:**
 - Create: `cmd/create.go`
@@ -3209,9 +3255,11 @@ git commit -m "feat: create command for admin app provisioning"
 
 ---
 
-## Chunk 6: Integration & Polish
+## Wave 5: Verification (1 task — barrier)
 
 ### Task 16: End-to-End Build Verification
+
+**Dependencies:** All prior tasks (verification barrier)
 
 This task verifies the full binary builds correctly and all help text renders properly.
 
@@ -3268,7 +3316,9 @@ git commit -m "fix: resolve build issues from integration"
 
 ---
 
-### Task 17: Add `.gitignore` and `Makefile`
+### Task 17: Add `.gitignore` and `Makefile` [Wave 4]
+
+**Dependencies:** None (independent files)
 
 **Files:**
 - Create: `.gitignore`
