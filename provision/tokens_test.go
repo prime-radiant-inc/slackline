@@ -34,6 +34,53 @@ func TestRotateConfigToken_Success(t *testing.T) {
 	}
 }
 
+func TestRotateConfigToken_NetworkError(t *testing.T) {
+	// Use a server that's already closed to force a network error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	server.Close()
+
+	_, _, err := RotateConfigToken(server.URL, "xoxe-refresh")
+	if err == nil {
+		t.Fatal("expected error for closed server, got nil")
+	}
+}
+
+func TestRotateConfigToken_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("this is not json {{{"))
+	}))
+	defer server.Close()
+
+	_, _, err := RotateConfigToken(server.URL, "xoxe-refresh")
+	if err == nil {
+		t.Fatal("expected error for invalid JSON response, got nil")
+	}
+}
+
+func TestRotateConfigToken_MissingFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok": true,
+			// token and refresh_token deliberately omitted
+		}); err != nil {
+			t.Errorf("Encode: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	token, refresh, err := RotateConfigToken(server.URL, "xoxe-refresh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// With ok:true but missing fields, the function returns empty strings
+	if token != "" {
+		t.Errorf("token = %q, want empty", token)
+	}
+	if refresh != "" {
+		t.Errorf("refresh = %q, want empty", refresh)
+	}
+}
+
 func TestRotateConfigToken_Expired(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
