@@ -76,7 +76,7 @@ func TestSave_FilePermissions(t *testing.T) {
 	}
 
 	perm := info.Mode().Perm()
-	if perm != 0600 {
+	if perm != 0o600 {
 		t.Errorf("file permissions = %o, want 0600", perm)
 	}
 }
@@ -100,7 +100,7 @@ func TestSave_CreatesParentDir(t *testing.T) {
 	}
 
 	perm := info.Mode().Perm()
-	if perm != 0700 {
+	if perm != 0o700 {
 		t.Errorf("dir permissions = %o, want 0700", perm)
 	}
 }

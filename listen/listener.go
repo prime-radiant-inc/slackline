@@ -72,11 +72,11 @@ func (l *Listener) Run() error {
 	// Start Socket Mode in background goroutine.
 	// "connected" status is emitted by handleEvent on EventTypeConnected,
 	// not here — sm.Run() hasn't connected yet at this point.
-	go l.sm.Run()
+	go func() { _ = l.sm.Run() }()
 
 	// Block until shutdown signal
 	<-stop
-	fmt.Fprintln(l.status, "disconnected")
+	_, _ = fmt.Fprintln(l.status, "disconnected")
 	return nil
 }
 
@@ -91,10 +91,10 @@ func (l *Listener) handleEvent(evt socketmode.Event) {
 		l.handleEventsAPI(eventsAPIEvent)
 
 	case socketmode.EventTypeConnectionError:
-		fmt.Fprintln(l.status, "reconnecting")
+		_, _ = fmt.Fprintln(l.status, "reconnecting")
 
 	case socketmode.EventTypeConnected:
-		fmt.Fprintln(l.status, "connected")
+		_, _ = fmt.Fprintln(l.status, "connected")
 	}
 }
 
@@ -157,5 +157,5 @@ func (l *Listener) emit(e Event) {
 	if err != nil {
 		return // Should never happen with simple structs
 	}
-	fmt.Fprintln(l.out, string(data))
+	_, _ = fmt.Fprintln(l.out, string(data))
 }

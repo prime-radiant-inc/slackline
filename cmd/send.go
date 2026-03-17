@@ -13,15 +13,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var sendChannel string
-var sendMessage string
-var sendThread string
+var (
+	sendChannel string
+	sendMessage string
+	sendThread  string
+)
 
 func init() {
 	sendCmd.Flags().StringVar(&sendChannel, "channel", "", "channel name (#ops), ID (C...), or Slack URL (required)")
 	sendCmd.Flags().StringVar(&sendMessage, "message", "", "message text (reads stdin if omitted)")
 	sendCmd.Flags().StringVar(&sendThread, "thread", "", "thread timestamp to reply to")
-	sendCmd.MarkFlagRequired("channel")
+	_ = sendCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(sendCmd)
 }
 

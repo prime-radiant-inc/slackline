@@ -16,8 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var createName string
-var createInit bool
+var (
+	createName string
+	createInit bool
+)
 
 func init() {
 	createCmd.Flags().StringVar(&createName, "name", "", "bot name (required for app creation, not needed with --init alone)")
@@ -115,7 +117,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "\nStep 1: Install the app\n")
 	fmt.Fprintf(os.Stderr, "  → https://api.slack.com/apps/%s/install-on-team\n", appID)
 	fmt.Fprintf(os.Stderr, "  Click \"Allow\", then press Enter.\n")
-	reader.ReadString('\n')
+	_, _ = reader.ReadString('\n')
 
 	fmt.Fprintf(os.Stderr, "\nStep 2: Paste Bot Token (xoxb-)\n")
 	fmt.Fprintf(os.Stderr, "  → https://api.slack.com/apps/%s/oauth\n", appID)
@@ -190,7 +192,7 @@ func createAppViaManifest(apiBase, configToken, manifestJSON string) (string, er
 	if err != nil {
 		return "", fmt.Errorf("manifest create request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		OK    bool   `json:"ok"`

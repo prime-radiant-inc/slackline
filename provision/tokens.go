@@ -22,7 +22,7 @@ func RotateConfigToken(apiBase, refreshToken string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("token rotation request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		OK           bool   `json:"ok"`

@@ -16,7 +16,9 @@ func TestMentionEvent_JSON(t *testing.T) {
 		t.Fatalf("Marshal: %v", err)
 	}
 	var got map[string]interface{}
-	json.Unmarshal(data, &got)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 	if got["type"] != "mention" {
 		t.Errorf("type = %v, want mention", got["type"])
 	}
@@ -32,7 +34,9 @@ func TestDMEvent_JSON(t *testing.T) {
 	e := Event{Type: "dm", Channel: "D0AA4MWTX45", User: "U0456", Text: "can you review this PR?", TS: "1769756030.111111"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
-	json.Unmarshal(data, &got)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 	if got["type"] != "dm" {
 		t.Errorf("type = %v, want dm", got["type"])
 	}
@@ -45,7 +49,9 @@ func TestReactionEvent_JSON(t *testing.T) {
 	e := Event{Type: "reaction", Channel: "C0A8LJZQSAX", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
-	json.Unmarshal(data, &got)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 	if got["type"] != "reaction" {
 		t.Errorf("type = %v, want reaction", got["type"])
 	}
@@ -64,7 +70,9 @@ func TestEvent_OmitsEmptyFields(t *testing.T) {
 	e := Event{Type: "mention", Channel: "C123", User: "U123", Text: "hello", TS: "123.456"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
-	json.Unmarshal(data, &got)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 	for _, key := range []string{"thread_ts", "emoji", "item_ts"} {
 		if _, ok := got[key]; ok {
 			t.Errorf("field %q should be omitted when empty", key)

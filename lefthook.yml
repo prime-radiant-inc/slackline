@@ -1,0 +1,11 @@
+pre-commit:
+  commands:
+    lint:
+      run: golangci-lint run ./...
+    vet:
+      run: go vet ./...
+
+pre-push:
+  commands:
+    test:
+      run: go test ./...

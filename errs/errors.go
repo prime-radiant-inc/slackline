@@ -36,7 +36,7 @@ func WriteError(w io.Writer, errCode string, detail string) {
 		Detail string `json:"detail"`
 	}{Error: errCode, Detail: detail}
 	data, _ := json.Marshal(obj)
-	fmt.Fprintln(w, string(data))
+	_, _ = fmt.Fprintln(w, string(data))
 }
 
 // AuthError returns a SlackError for authentication failures.

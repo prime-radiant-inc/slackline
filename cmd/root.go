@@ -12,9 +12,9 @@ import (
 var cfgFile string
 
 var rootCmd = &cobra.Command{
-	Use:   "slackline",
-	Short: "Give AI agents a Slack identity",
-	Long:  "A CLI tool for AI agents to send messages, read channels, and listen for events in Slack.",
+	Use:           "slackline",
+	Short:         "Give AI agents a Slack identity",
+	Long:          "A CLI tool for AI agents to send messages, read channels, and listen for events in Slack.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
