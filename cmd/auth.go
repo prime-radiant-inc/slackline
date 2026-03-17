@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/prime-radiant/slackline/errs"
 	"github.com/prime-radiant/slackline/slack"
@@ -54,15 +55,14 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Validate app token
+	// App tokens (xapp-) are only valid for Socket Mode — auth.test doesn't accept them.
+	// Just check the prefix to confirm the right token type was configured.
 	appStatus := "(not configured)"
 	if cfg.Bot.AppToken != "" {
-		appClient := slack.NewClient(cfg.Bot.AppToken)
-		_, authErr := appClient.AuthTest()
-		if authErr != nil {
-			appStatus = fmt.Sprintf("(invalid: %s)", authErr.Error())
+		if strings.HasPrefix(cfg.Bot.AppToken, "xapp-") {
+			appStatus = "(configured)"
 		} else {
-			appStatus = "(valid)"
+			appStatus = "(invalid: expected xapp- prefix)"
 		}
 	}
 
