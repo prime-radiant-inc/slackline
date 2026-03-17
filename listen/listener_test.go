@@ -200,7 +200,7 @@ func TestHandleEventsAPI_DM(t *testing.T) {
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
 		User:      "U999",
 		Text:      "hello in DM",
-		Channel:   "D01DIRECTMSG", // DM channels start with D
+		Channel:   "D01TESTDM00", // DM channels start with D
 		TimeStamp: "200.001",
 	}))
 
@@ -211,7 +211,7 @@ func TestHandleEventsAPI_DM(t *testing.T) {
 	if lines[0]["type"] != "dm" {
 		t.Errorf("type = %v, want dm", lines[0]["type"])
 	}
-	if lines[0]["channel"] != "D01DIRECTMSG" {
+	if lines[0]["channel"] != "D01TESTDM00" {
 		t.Errorf("channel = %v", lines[0]["channel"])
 	}
 }
@@ -221,7 +221,7 @@ func TestHandleEventsAPI_DMSelfFiltered(t *testing.T) {
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
 		User:    testBotUserID,
 		Text:    "my own DM",
-		Channel: "D01DIRECTMSG",
+		Channel: "D01TESTDM00",
 	}))
 
 	if buf.Len() != 0 {
@@ -235,7 +235,7 @@ func TestHandleEventsAPI_DMNonDMChannelIgnored(t *testing.T) {
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
 		User:    "U999",
 		Text:    "channel message, not a DM",
-		Channel: "C01OPS12345",
+		Channel: "C01TESTCHAN",
 	}))
 
 	if buf.Len() != 0 {
@@ -248,7 +248,7 @@ func TestHandleEventsAPI_DMSubtypeIgnored(t *testing.T) {
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
 		User:    "U999",
 		Text:    "edited",
-		Channel: "D01DIRECTMSG",
+		Channel: "D01TESTDM00",
 		SubType: "message_changed",
 	}))
 

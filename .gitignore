@@ -9,3 +9,5 @@ worktrees/
 *.exe
 *.test
 *.out
+memory/
+docs/superpowers/

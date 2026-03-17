@@ -53,3 +53,12 @@ Resolved in `loadConfig()` in `cmd/root.go`. `SLACKLINE_BOT_TOKEN` / `SLACKLINE_
 ### Testing approach
 
 Commands use `cmd.OutOrStdout()` / `cmd.OutOrStderr()` throughout, making output capturable in tests. `cmd/helpers_test.go` has the bulk of command-level tests. `createAppViaManifest` and similar HTTP functions accept an `apiBase` override for httptest-based testing.
+
+### slack-go API quirks
+
+The `slack-go/slack` library is pre-1.0 and has some non-obvious signatures:
+
+- `GetConversationReplies` returns `([]Message, bool, string, error)` — the bool is `hasMore`, the string is a cursor.
+- `GetConversations` returns `([]Channel, string, error)` — the string is the next cursor.
+- `GetConversationsParameters.Types` is a `string` (comma-separated), not a `[]string`.
+- Pagination metadata field is `ResponseMetadata` (not `ResponseMetaData`).

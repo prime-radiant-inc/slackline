@@ -7,8 +7,8 @@ import (
 
 func TestMentionEvent_JSON(t *testing.T) {
 	e := Event{
-		Type: "mention", Channel: "C01OPS12345", User: "U0123",
-		Text: "hey @my-bot check the logs", TS: "1769756026.624319",
+		Type: "mention", Channel: "C01TESTCHAN", User: "U0123",
+		Text: "hey @test-bot check the logs", TS: "1769756026.624319",
 		ThreadTS: "1769756026.624319",
 	}
 	data, err := json.Marshal(e)
@@ -22,16 +22,16 @@ func TestMentionEvent_JSON(t *testing.T) {
 	if got["type"] != "mention" {
 		t.Errorf("type = %v, want mention", got["type"])
 	}
-	if got["channel"] != "C01OPS12345" {
+	if got["channel"] != "C01TESTCHAN" {
 		t.Errorf("channel = %v", got["channel"])
 	}
-	if got["text"] != "hey @my-bot check the logs" {
+	if got["text"] != "hey @test-bot check the logs" {
 		t.Errorf("text = %v", got["text"])
 	}
 }
 
 func TestDMEvent_JSON(t *testing.T) {
-	e := Event{Type: "dm", Channel: "D01DIRECTMSG", User: "U0456", Text: "can you review this PR?", TS: "1769756030.111111"}
+	e := Event{Type: "dm", Channel: "D01TESTDM00", User: "U0456", Text: "can you review this PR?", TS: "1769756030.111111"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
@@ -46,7 +46,7 @@ func TestDMEvent_JSON(t *testing.T) {
 }
 
 func TestReactionEvent_JSON(t *testing.T) {
-	e := Event{Type: "reaction", Channel: "C01OPS12345", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
+	e := Event{Type: "reaction", Channel: "C01TESTCHAN", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
