@@ -1,0 +1,112 @@
+package cmd
+
+import (
+	"testing"
+
+	"github.com/prime-radiant-inc/slackline/errs"
+)
+
+func TestReadEnvInputs_NeitherSet(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "")
+	t.Setenv("SLACKLINE_APP_TOKEN", "")
+	t.Setenv("SLACKLINE_WORKSPACE_URL", "")
+
+	inputs, err := readEnvInputs()
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if inputs != nil {
+		t.Fatalf("expected nil inputs (interactive mode), got %+v", inputs)
+	}
+}
+
+func TestReadEnvInputs_BothSet(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "xoxb-valid-token")
+	t.Setenv("SLACKLINE_APP_TOKEN", "xapp-valid-token")
+	t.Setenv("SLACKLINE_WORKSPACE_URL", "https://myteam.slack.com")
+
+	inputs, err := readEnvInputs()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inputs == nil {
+		t.Fatal("expected inputs, got nil")
+	}
+	if inputs.botToken != "xoxb-valid-token" {
+		t.Errorf("botToken = %q, want %q", inputs.botToken, "xoxb-valid-token")
+	}
+	if inputs.appToken != "xapp-valid-token" {
+		t.Errorf("appToken = %q, want %q", inputs.appToken, "xapp-valid-token")
+	}
+	if inputs.workspaceURL != "https://myteam.slack.com" {
+		t.Errorf("workspaceURL = %q, want %q", inputs.workspaceURL, "https://myteam.slack.com")
+	}
+}
+
+func TestReadEnvInputs_OnlyBotSet(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "xoxb-valid-token")
+	t.Setenv("SLACKLINE_APP_TOKEN", "")
+
+	_, err := readEnvInputs()
+	if err == nil {
+		t.Fatal("expected error when only bot token is set")
+	}
+	se, ok := err.(*errs.SlackError)
+	if !ok {
+		t.Fatalf("expected *errs.SlackError, got %T", err)
+	}
+	if se.Code != errs.Usage {
+		t.Errorf("exit code = %d, want %d (Usage)", se.Code, errs.Usage)
+	}
+}
+
+func TestReadEnvInputs_OnlyAppSet(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "")
+	t.Setenv("SLACKLINE_APP_TOKEN", "xapp-valid-token")
+
+	_, err := readEnvInputs()
+	if err == nil {
+		t.Fatal("expected error when only app token is set")
+	}
+	se, ok := err.(*errs.SlackError)
+	if !ok {
+		t.Fatalf("expected *errs.SlackError, got %T", err)
+	}
+	if se.Code != errs.Usage {
+		t.Errorf("exit code = %d, want %d (Usage)", se.Code, errs.Usage)
+	}
+}
+
+func TestReadEnvInputs_BadBotPrefix(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "xoxp-wrong-type")
+	t.Setenv("SLACKLINE_APP_TOKEN", "xapp-valid-token")
+
+	_, err := readEnvInputs()
+	if err == nil {
+		t.Fatal("expected error for wrong bot token prefix")
+	}
+	se, ok := err.(*errs.SlackError)
+	if !ok {
+		t.Fatalf("expected *errs.SlackError, got %T", err)
+	}
+	if se.Code != errs.Usage {
+		t.Errorf("exit code = %d, want %d (Usage)", se.Code, errs.Usage)
+	}
+}
+
+func TestReadEnvInputs_BadAppPrefix(t *testing.T) {
+	t.Setenv("SLACKLINE_BOT_TOKEN", "xoxb-valid-token")
+	t.Setenv("SLACKLINE_APP_TOKEN", "xoxb-wrong-type")
+
+	_, err := readEnvInputs()
+	if err == nil {
+		t.Fatal("expected error for wrong app token prefix")
+	}
+	se, ok := err.(*errs.SlackError)
+	if !ok {
+		t.Fatalf("expected *errs.SlackError, got %T", err)
+	}
+	if se.Code != errs.Usage {
+		t.Errorf("exit code = %d, want %d (Usage)", se.Code, errs.Usage)
+	}
+}
