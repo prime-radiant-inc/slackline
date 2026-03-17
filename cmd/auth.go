@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/prime-radiant/slackline/errs"
-	"github.com/prime-radiant/slackline/slack"
+	"github.com/prime-radiant-inc/slackline/errs"
+	"github.com/prime-radiant-inc/slackline/slack"
 	"github.com/spf13/cobra"
 )
 

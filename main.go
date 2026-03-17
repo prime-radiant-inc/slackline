@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/prime-radiant/slackline/cmd"
+	"github.com/prime-radiant-inc/slackline/cmd"
 )
 
 func main() {

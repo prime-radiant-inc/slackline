@@ -1,4 +1,4 @@
-module github.com/prime-radiant/slackline
+module github.com/prime-radiant-inc/slackline
 
 go 1.25.0
 

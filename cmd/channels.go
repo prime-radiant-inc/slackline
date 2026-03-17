@@ -7,7 +7,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/prime-radiant/slackline/errs"
+	"github.com/prime-radiant-inc/slackline/errs"
 	"github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 )

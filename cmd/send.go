@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/prime-radiant/slackline/errs"
-	slackpkg "github.com/prime-radiant/slackline/slack"
+	"github.com/prime-radiant-inc/slackline/errs"
+	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	goslack "github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 )

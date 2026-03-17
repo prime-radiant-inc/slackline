@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/prime-radiant/slackline/config"
-	"github.com/prime-radiant/slackline/errs"
-	slackpkg "github.com/prime-radiant/slackline/slack"
+	"github.com/prime-radiant-inc/slackline/config"
+	"github.com/prime-radiant-inc/slackline/errs"
+	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	"github.com/spf13/cobra"
 )
 
