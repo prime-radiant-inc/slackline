@@ -23,6 +23,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ~/.config/slackline/config.json)")
 }
 
+// SetVersion stores the build-time version string on the root command.
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 func loadConfig() (*config.Config, string, error) {
 	path := cfgFile
 	if path == "" {
