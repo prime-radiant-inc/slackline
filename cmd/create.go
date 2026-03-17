@@ -51,18 +51,18 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "  3. Click \"Generate Token\" for your workspace")
 		fmt.Fprintln(os.Stderr, "")
 
-		fmt.Print("Paste your config token (starts with xoxe-): ")
+		fmt.Print("Paste your config token (starts with xoxe.): ")
 		configToken, _ := reader.ReadString('\n')
 		configToken = strings.TrimSpace(configToken)
-		if !strings.HasPrefix(configToken, "xoxe-") {
-			return &errs.SlackError{Code: errs.Usage, Err: "invalid_token", Detail: "Config token must start with 'xoxe-'"}
+		if !strings.HasPrefix(configToken, "xoxe.") {
+			return &errs.SlackError{Code: errs.Usage, Err: "invalid_token", Detail: "Config token must start with 'xoxe.'"}
 		}
 
-		fmt.Print("Paste your refresh token (starts with xoxe-): ")
+		fmt.Print("Paste your refresh token (starts with xoxe.): ")
 		refreshToken, _ := reader.ReadString('\n')
 		refreshToken = strings.TrimSpace(refreshToken)
-		if !strings.HasPrefix(refreshToken, "xoxe-") {
-			return &errs.SlackError{Code: errs.Usage, Err: "invalid_token", Detail: "Refresh token must start with 'xoxe-'"}
+		if !strings.HasPrefix(refreshToken, "xoxe.") {
+			return &errs.SlackError{Code: errs.Usage, Err: "invalid_token", Detail: "Refresh token must start with 'xoxe.'"}
 		}
 
 		provCfg = &config.ProvisionConfig{
