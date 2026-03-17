@@ -1,0 +1,7 @@
+# Binary
+slackline
+
+# Go
+*.exe
+*.test
+*.out
