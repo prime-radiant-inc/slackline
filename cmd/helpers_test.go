@@ -4,11 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"testing"
 
 	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	goslack "github.com/slack-go/slack"
 )
+
+// uploadFilesCall records arguments from a single UploadFiles invocation.
+type uploadFilesCall struct {
+	channelID      string
+	threadTS       string
+	initialComment string
+	files          []slackpkg.FileUpload
+}
 
 // fakeSlackAPI implements slackpkg.SlackAPI for testing cmd helpers.
 type fakeSlackAPI struct {
@@ -23,6 +32,18 @@ type fakeSlackAPI struct {
 	repliesErr      error
 	// capturedRepliesParams records the last GetConversationReplies call.
 	capturedRepliesParams *goslack.GetConversationRepliesParameters
+
+	addReactionErr    error
+	removeReactionErr error
+
+	getFileInfoFile *goslack.File
+	getFileInfoErr  error
+
+	getFileErr error
+
+	lastUploadFilesCall *uploadFilesCall
+	uploadFilesResp     []goslack.FileSummary
+	uploadFilesErr      error
 }
 
 func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
@@ -51,6 +72,38 @@ func (f *fakeSlackAPI) GetConversationReplies(params *goslack.GetConversationRep
 
 func (f *fakeSlackAPI) GetConversations(params *goslack.GetConversationsParameters) ([]goslack.Channel, string, error) {
 	return nil, "", nil
+}
+
+func (f *fakeSlackAPI) AddReaction(name string, item goslack.ItemRef) error {
+	return f.addReactionErr
+}
+
+func (f *fakeSlackAPI) RemoveReaction(name string, item goslack.ItemRef) error {
+	return f.removeReactionErr
+}
+
+func (f *fakeSlackAPI) GetFileInfo(fileID string, count, page int) (*goslack.File, []goslack.Comment, *goslack.Paging, error) {
+	if f.getFileInfoErr != nil {
+		return nil, nil, nil, f.getFileInfoErr
+	}
+	return f.getFileInfoFile, nil, nil, nil
+}
+
+func (f *fakeSlackAPI) GetFile(downloadURL string, writer io.Writer) error {
+	return f.getFileErr
+}
+
+func (f *fakeSlackAPI) UploadFiles(channelID, threadTS, initialComment string, files []slackpkg.FileUpload) ([]goslack.FileSummary, error) {
+	f.lastUploadFilesCall = &uploadFilesCall{
+		channelID:      channelID,
+		threadTS:       threadTS,
+		initialComment: initialComment,
+		files:          files,
+	}
+	if f.uploadFilesErr != nil {
+		return nil, f.uploadFilesErr
+	}
+	return f.uploadFilesResp, nil
 }
 
 // Compile-time check that fakeSlackAPI satisfies slackpkg.SlackAPI.

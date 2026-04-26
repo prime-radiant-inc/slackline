@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -31,6 +32,19 @@ func (f *fakeAPI) GetConversationReplies(params *goslack.GetConversationRepliesP
 func (f *fakeAPI) GetConversations(params *goslack.GetConversationsParameters) ([]goslack.Channel, string, error) {
 	// Return all channels in one page (no pagination needed for tests unless overridden).
 	return f.channels, "", nil
+}
+
+func (f *fakeAPI) AddReaction(_ string, _ goslack.ItemRef) error    { return nil }
+func (f *fakeAPI) RemoveReaction(_ string, _ goslack.ItemRef) error { return nil }
+
+func (f *fakeAPI) GetFileInfo(_ string, _, _ int) (*goslack.File, []goslack.Comment, *goslack.Paging, error) {
+	return nil, nil, nil, nil
+}
+
+func (f *fakeAPI) GetFile(_ string, _ io.Writer) error { return nil }
+
+func (f *fakeAPI) UploadFiles(_, _, _ string, _ []FileUpload) ([]goslack.FileSummary, error) {
+	return nil, nil
 }
 
 // countingFakeAPI wraps fakeAPI and counts GetConversations calls.
