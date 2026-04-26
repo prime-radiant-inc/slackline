@@ -79,19 +79,19 @@ func TestGenerateManifest_Golden(t *testing.T) {
 	m := GenerateManifest("my-bot", "", false)
 
 	wantScopes := map[string]bool{
-		"chat:write":         true,
-		"channels:read":      true,
-		"groups:read":        true,
-		"channels:history":   true,
-		"groups:history":     true,
-		"app_mentions:read":  true,
-		"im:history":         true,
-		"im:read":            true,
-		"reactions:read":     true,
-		"reactions:write":    true,
-		"users:read":         true,
-		"files:read":         true,
-		"files:write":        true,
+		"chat:write":        true,
+		"channels:read":     true,
+		"groups:read":       true,
+		"channels:history":  true,
+		"groups:history":    true,
+		"app_mentions:read": true,
+		"im:history":        true,
+		"im:read":           true,
+		"reactions:read":    true,
+		"reactions:write":   true,
+		"users:read":        true,
+		"files:read":        true,
+		"files:write":       true,
 	}
 	gotScopes := map[string]bool{}
 	for _, s := range m.OAuthConfig.Scopes.Bot {
