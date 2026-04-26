@@ -45,15 +45,15 @@ func TestDMEvent_JSON(t *testing.T) {
 	}
 }
 
-func TestReactionEvent_JSON(t *testing.T) {
-	e := Event{Type: "reaction", Channel: "C01TESTCHAN", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
+func TestReactionAddedEvent_JSON(t *testing.T) {
+	e := Event{Type: "reaction_added", Channel: "C01TESTCHAN", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if got["type"] != "reaction" {
-		t.Errorf("type = %v, want reaction", got["type"])
+	if got["type"] != "reaction_added" {
+		t.Errorf("type = %v, want reaction_added", got["type"])
 	}
 	if got["emoji"] != "eyes" {
 		t.Errorf("emoji = %v, want eyes", got["emoji"])
@@ -62,7 +62,28 @@ func TestReactionEvent_JSON(t *testing.T) {
 		t.Errorf("item_ts = %v", got["item_ts"])
 	}
 	if _, ok := got["text"]; ok {
-		t.Error("reaction event should not have text")
+		t.Error("reaction_added event should not have text")
+	}
+}
+
+func TestReactionRemovedEvent_JSON(t *testing.T) {
+	e := Event{Type: "reaction_removed", Channel: "C01TESTCHAN", User: "U0123", Emoji: "thumbsup", ItemTS: "1769756026.624319"}
+	data, _ := json.Marshal(e)
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got["type"] != "reaction_removed" {
+		t.Errorf("type = %v, want reaction_removed", got["type"])
+	}
+	if got["emoji"] != "thumbsup" {
+		t.Errorf("emoji = %v, want thumbsup", got["emoji"])
+	}
+	if got["item_ts"] != "1769756026.624319" {
+		t.Errorf("item_ts = %v", got["item_ts"])
+	}
+	if _, ok := got["text"]; ok {
+		t.Error("reaction_removed event should not have text")
 	}
 }
 
