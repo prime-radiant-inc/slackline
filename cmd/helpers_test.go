@@ -47,7 +47,8 @@ type fakeSlackAPI struct {
 	getFileInfoFile *goslack.File
 	getFileInfoErr  error
 
-	getFileErr error
+	getFileBytes []byte
+	getFileErr   error
 
 	lastUploadFilesCall *uploadFilesCall
 	uploadFilesResp     []goslack.FileSummary
@@ -100,7 +101,14 @@ func (f *fakeSlackAPI) GetFileInfo(fileID string, count, page int) (*goslack.Fil
 }
 
 func (f *fakeSlackAPI) GetFile(downloadURL string, writer io.Writer) error {
-	return f.getFileErr
+	if f.getFileErr != nil {
+		return f.getFileErr
+	}
+	if f.getFileBytes != nil {
+		_, err := writer.Write(f.getFileBytes)
+		return err
+	}
+	return nil
 }
 
 func (f *fakeSlackAPI) UploadFiles(channelID, threadTS, initialComment string, files []slackpkg.FileUpload) ([]goslack.FileSummary, error) {
