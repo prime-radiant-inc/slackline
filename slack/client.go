@@ -10,11 +10,17 @@ import (
 // (e.g. UploadFiles) are implemented in separate files.
 type realClient struct {
 	*goslack.Client
+	apiBase string
+	token   string
 }
 
 // NewClient returns a SlackAPI backed by a real slack-go client.
 func NewClient(botToken string) SlackAPI {
-	return &realClient{goslack.New(botToken)}
+	return &realClient{
+		Client:  goslack.New(botToken),
+		apiBase: "https://slack.com/api/",
+		token:   botToken,
+	}
 }
 
 // Compile-time check that realClient satisfies SlackAPI.
