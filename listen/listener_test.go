@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	goslack "github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 )
 
@@ -397,5 +398,79 @@ func TestHandleEventsAPI_IncludeBotSelf_Reaction(t *testing.T) {
 	}))
 	if buf.Len() == 0 {
 		t.Error("self reaction should pass with --include-bot-self")
+	}
+}
+
+func TestHandleEventsAPI_DM_WithFiles(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      "U999",
+		Text:      "see this",
+		Channel:   "D01TESTDM00",
+		TimeStamp: "200.001",
+		// Files live on MessageEvent.Message (*goslack.Msg), not on MessageEvent directly.
+		Message: &goslack.Msg{
+			Files: []goslack.File{
+				{ID: "F123", Name: "report.pdf", Mimetype: "application/pdf", Size: 12345, Title: "Q4 Report"},
+				{ID: "F456", Name: "extra.png", Mimetype: "image/png", Size: 6789},
+			},
+		},
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	files, ok := lines[0]["files"].([]interface{})
+	if !ok {
+		t.Fatalf("files field missing or wrong type: %v", lines[0])
+	}
+	if len(files) != 2 {
+		t.Fatalf("files length = %d, want 2", len(files))
+	}
+	first := files[0].(map[string]interface{})
+	if first["id"] != "F123" {
+		t.Errorf("files[0].id = %v", first["id"])
+	}
+	if first["name"] != "report.pdf" {
+		t.Errorf("files[0].name = %v", first["name"])
+	}
+	if first["mimetype"] != "application/pdf" {
+		t.Errorf("files[0].mimetype = %v", first["mimetype"])
+	}
+}
+
+// AppMentionEvent (v0.19.0) has no Files field; mention events never carry files.
+// This test confirms the files key is absent on mention output.
+func TestHandleEventsAPI_Mention_NoFilesOmitted(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
+		User:      "U999",
+		Text:      "look at this",
+		Channel:   testChannelID,
+		TimeStamp: "100.001",
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	if _, ok := lines[0]["files"]; ok {
+		t.Error("files key should be absent on mention events (AppMentionEvent has no Files field)")
+	}
+}
+
+func TestHandleEventsAPI_DM_NoFilesOmitsArray(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      "U999",
+		Text:      "no files",
+		Channel:   "D01TESTDM00",
+		TimeStamp: "200.001",
+	}))
+
+	lines := parseJSONL(t, buf)
+	if _, ok := lines[0]["files"]; ok {
+		t.Error("files key should be omitted when there are no attachments")
 	}
 }

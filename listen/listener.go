@@ -133,9 +133,13 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		if l.shouldFilterSelf(ev.User) {
 			return // Self-filter: drop our own messages
 		}
-		// Skip message subtypes (edits, deletes, etc.) — only new messages in v1
-		if ev.SubType != "" {
+		// Allow file_share subtype since it carries Files; skip other subtypes.
+		if ev.SubType != "" && ev.SubType != "file_share" {
 			return
+		}
+		var msgFiles []goslack.File
+		if ev.Message != nil {
+			msgFiles = ev.Message.Files
 		}
 		l.emit(Event{
 			Type:     "dm",
@@ -144,6 +148,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			Text:     ev.Text,
 			TS:       ev.TimeStamp,
 			ThreadTS: ev.ThreadTimeStamp,
+			Files:    convertFiles(msgFiles),
 		})
 
 	case *slackevents.ReactionAddedEvent:
@@ -182,4 +187,21 @@ func (l *Listener) emit(e Event) {
 		return // Should never happen with simple structs
 	}
 	_, _ = fmt.Fprintln(l.out, string(data))
+}
+
+func convertFiles(in []goslack.File) []FileMeta {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]FileMeta, len(in))
+	for i, f := range in {
+		out[i] = FileMeta{
+			ID:       f.ID,
+			Name:     f.Name,
+			Mimetype: f.Mimetype,
+			Size:     f.Size,
+			Title:    f.Title,
+		}
+	}
+	return out
 }

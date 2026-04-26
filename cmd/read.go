@@ -37,10 +37,19 @@ var readCmd = &cobra.Command{
 
 // messageOutput is the JSONL output format for each message.
 type messageOutput struct {
-	TS       string `json:"ts"`
-	User     string `json:"user"`
-	Text     string `json:"text"`
-	ThreadTS string `json:"thread_ts,omitempty"`
+	TS       string         `json:"ts"`
+	User     string         `json:"user"`
+	Text     string         `json:"text"`
+	ThreadTS string         `json:"thread_ts,omitempty"`
+	Files    []fileMetaJSON `json:"files,omitempty"`
+}
+
+type fileMetaJSON struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Mimetype string `json:"mimetype,omitempty"`
+	Size     int    `json:"size"`
+	Title    string `json:"title,omitempty"`
 }
 
 func runRead(cmd *cobra.Command, args []string) error {
@@ -88,11 +97,22 @@ func runRead(cmd *cobra.Command, args []string) error {
 		if threadTS == m.Timestamp {
 			threadTS = ""
 		}
+		var files []fileMetaJSON
+		for _, f := range m.Files {
+			files = append(files, fileMetaJSON{
+				ID:       f.ID,
+				Name:     f.Name,
+				Mimetype: f.Mimetype,
+				Size:     f.Size,
+				Title:    f.Title,
+			})
+		}
 		out := messageOutput{
 			TS:       m.Timestamp,
 			User:     m.User,
 			Text:     m.Text,
 			ThreadTS: threadTS,
+			Files:    files,
 		}
 		if err := enc.Encode(out); err != nil {
 			return err
