@@ -48,16 +48,22 @@ type Scopes struct {
 
 // GenerateManifest creates a Slack app manifest with the required scopes and
 // event subscriptions for a slackline bot identity.
-func GenerateManifest(appName string) *Manifest {
+//
+// description is optional — when empty, a default is applied.
+// alwaysOnline controls Bot User's always_online setting.
+func GenerateManifest(appName, description string, alwaysOnline bool) *Manifest {
+	if description == "" {
+		description = "Slackline bot identity for AI agents"
+	}
 	return &Manifest{
 		DisplayInfo: DisplayInfo{
 			Name:        appName,
-			Description: "Slackline bot identity for AI agents",
+			Description: description,
 		},
 		Features: Features{
 			BotUser: BotUser{
 				DisplayName:  appName,
-				AlwaysOnline: false,
+				AlwaysOnline: alwaysOnline,
 			},
 		},
 		Settings: Settings{
@@ -66,7 +72,10 @@ func GenerateManifest(appName string) *Manifest {
 				BotEvents: []string{
 					"app_mention",
 					"message.im",
+					"message.channels",
+					"message.groups",
 					"reaction_added",
+					"reaction_removed",
 				},
 			},
 		},
@@ -82,7 +91,10 @@ func GenerateManifest(appName string) *Manifest {
 					"im:history",
 					"im:read",
 					"reactions:read",
+					"reactions:write",
 					"users:read",
+					"files:read",
+					"files:write",
 				},
 			},
 		},

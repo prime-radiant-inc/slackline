@@ -102,7 +102,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(os.Stderr, "✓")
 
 	// Create app via manifest API
-	manifest := provision.GenerateManifest(createName)
+	manifest := provision.GenerateManifest(createName, "", false)
 	manifestJSON, _ := json.Marshal(manifest)
 
 	fmt.Fprintf(os.Stderr, "Creating Slack app %q... ", createName)
