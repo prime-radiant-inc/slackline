@@ -19,6 +19,12 @@ type uploadFilesCall struct {
 	files          []slackpkg.FileUpload
 }
 
+// capturedReaction records the arguments from a single AddReaction/RemoveReaction call.
+type capturedReaction struct {
+	Name string
+	Item goslack.ItemRef
+}
+
 // fakeSlackAPI implements slackpkg.SlackAPI for testing cmd helpers.
 type fakeSlackAPI struct {
 	historyResp *goslack.GetConversationHistoryResponse
@@ -33,6 +39,8 @@ type fakeSlackAPI struct {
 	// capturedRepliesParams records the last GetConversationReplies call.
 	capturedRepliesParams *goslack.GetConversationRepliesParameters
 
+	reactionsAdded    []capturedReaction
+	reactionsRemoved  []capturedReaction
 	addReactionErr    error
 	removeReactionErr error
 
@@ -75,10 +83,12 @@ func (f *fakeSlackAPI) GetConversations(params *goslack.GetConversationsParamete
 }
 
 func (f *fakeSlackAPI) AddReaction(name string, item goslack.ItemRef) error {
+	f.reactionsAdded = append(f.reactionsAdded, capturedReaction{Name: name, Item: item})
 	return f.addReactionErr
 }
 
 func (f *fakeSlackAPI) RemoveReaction(name string, item goslack.ItemRef) error {
+	f.reactionsRemoved = append(f.reactionsRemoved, capturedReaction{Name: name, Item: item})
 	return f.removeReactionErr
 }
 
