@@ -273,8 +273,8 @@ func TestHandleEventsAPI_Reaction(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != "reaction" {
-		t.Errorf("type = %v, want reaction", m["type"])
+	if m["type"] != "reaction_added" {
+		t.Errorf("type = %v, want reaction_added", m["type"])
 	}
 	if m["emoji"] != "eyes" {
 		t.Errorf("emoji = %v, want eyes", m["emoji"])
@@ -300,6 +300,49 @@ func TestHandleEventsAPI_ReactionSelfFiltered(t *testing.T) {
 
 	if buf.Len() != 0 {
 		t.Errorf("self-reaction should be dropped, got: %s", buf.String())
+	}
+}
+
+func TestHandleEventsAPI_ReactionRemoved(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionRemovedEvent{
+		User:     "U999",
+		Reaction: "thumbsup",
+		Item: slackevents.Item{
+			Channel:   testChannelID,
+			Timestamp: "300.001",
+		},
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	m := lines[0]
+	if m["type"] != "reaction_removed" {
+		t.Errorf("type = %v, want reaction_removed", m["type"])
+	}
+	if m["emoji"] != "thumbsup" {
+		t.Errorf("emoji = %v, want thumbsup", m["emoji"])
+	}
+	if m["item_ts"] != "300.001" {
+		t.Errorf("item_ts = %v", m["item_ts"])
+	}
+}
+
+func TestHandleEventsAPI_ReactionRemovedSelfFiltered(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionRemovedEvent{
+		User:     testBotUserID,
+		Reaction: "thumbsup",
+		Item: slackevents.Item{
+			Channel:   testChannelID,
+			Timestamp: "300.001",
+		},
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("self reaction_removed should be dropped, got: %s", buf.String())
 	}
 }
 

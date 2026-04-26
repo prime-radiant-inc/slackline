@@ -139,7 +139,19 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return // Self-filter
 		}
 		l.emit(Event{
-			Type:    "reaction",
+			Type:    "reaction_added",
+			Channel: ev.Item.Channel,
+			User:    ev.User,
+			Emoji:   ev.Reaction,
+			ItemTS:  ev.Item.Timestamp,
+		})
+
+	case *slackevents.ReactionRemovedEvent:
+		if ev.User == l.botUserID {
+			return
+		}
+		l.emit(Event{
+			Type:    "reaction_removed",
 			Channel: ev.Item.Channel,
 			User:    ev.User,
 			Emoji:   ev.Reaction,
