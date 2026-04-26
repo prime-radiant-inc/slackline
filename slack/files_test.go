@@ -152,6 +152,58 @@ func TestUploadFiles_GetURLError(t *testing.T) {
 	}
 }
 
+func TestUploadFiles_PostBytesFails(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/files.getUploadURLExternal", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"ok":true,"upload_url":"http://`+r.Host+`/upload","file_id":"F1"}`)
+	})
+	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, "AccessDenied")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "x")
+	_ = os.WriteFile(p, []byte("x"), 0o600)
+
+	c := newRealClientForTest(srv.URL+"/api/", "xoxb-test")
+	_, err := c.UploadFiles("C1", "", "", []FileUpload{{Path: p}})
+	if err == nil {
+		t.Fatal("expected error from 4xx upload response")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("error should mention 403, got: %v", err)
+	}
+}
+
+func TestUploadFiles_CompleteReturnsOKFalse(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/files.getUploadURLExternal", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"ok":true,"upload_url":"http://`+r.Host+`/upload","file_id":"F1"}`)
+	})
+	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {})
+	mux.HandleFunc("/api/files.completeUploadExternal", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"ok":false,"error":"channel_not_found"}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "x")
+	_ = os.WriteFile(p, []byte("x"), 0o600)
+
+	c := newRealClientForTest(srv.URL+"/api/", "xoxb-test")
+	_, err := c.UploadFiles("C1", "", "", []FileUpload{{Path: p}})
+	if err == nil {
+		t.Fatal("expected error when completeUploadExternal returns ok:false")
+	}
+	if !strings.Contains(err.Error(), "channel_not_found") {
+		t.Errorf("error should mention channel_not_found, got: %v", err)
+	}
+}
+
 // newRealClientForTest constructs a realClient with custom apiBase/token values
 // pointed at an httptest server.
 func newRealClientForTest(apiBase, token string) *realClient {

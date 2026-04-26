@@ -125,6 +125,8 @@ func postFileBytes(uploadURL, path string) error {
 	}
 	defer func() { _ = f.Close() }()
 
+	// Slack's external-upload signed URL accepts POST (not PUT, despite earlier
+	// internal docs); using PUT returns SignatureDoesNotMatch from S3.
 	req, err := http.NewRequest(http.MethodPost, uploadURL, f)
 	if err != nil {
 		return fmt.Errorf("build upload request: %w", err)
