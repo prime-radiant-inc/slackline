@@ -368,3 +368,34 @@ func TestHandleEventsAPI_EmptyChannelMessageIgnored(t *testing.T) {
 		t.Errorf("message with empty channel should be dropped, got: %s", buf.String())
 	}
 }
+
+func TestHandleEventsAPI_IncludeBotSelf_Mention(t *testing.T) {
+	l, buf := newTestListener()
+	l.includeBotSelf = true
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
+		User:    testBotUserID,
+		Text:    "I mentioned myself",
+		Channel: testChannelID,
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("expected event to pass through with --include-bot-self, got %d", len(lines))
+	}
+}
+
+func TestHandleEventsAPI_IncludeBotSelf_Reaction(t *testing.T) {
+	l, buf := newTestListener()
+	l.includeBotSelf = true
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionAddedEvent{
+		User:     testBotUserID,
+		Reaction: "thumbsup",
+		Item: slackevents.Item{
+			Channel:   testChannelID,
+			Timestamp: "300.001",
+		},
+	}))
+	if buf.Len() == 0 {
+		t.Error("self reaction should pass with --include-bot-self")
+	}
+}

@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var listenIncludeBotSelf bool
+
 func init() {
+	listenCmd.Flags().BoolVar(&listenIncludeBotSelf, "include-bot-self", false, "include events authored by the bot itself (default: filtered)")
 	rootCmd.AddCommand(listenCmd)
 }
 
@@ -42,6 +45,6 @@ func runListen(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: err.Error()}
 	}
 
-	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, os.Stdout, os.Stderr)
+	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, listenIncludeBotSelf, os.Stdout, os.Stderr)
 	return listener.Run()
 }

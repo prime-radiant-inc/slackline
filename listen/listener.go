@@ -15,26 +15,38 @@ import (
 
 // Listener connects to Slack via Socket Mode and emits events as JSONL.
 type Listener struct {
-	api       *goslack.Client
-	sm        *socketmode.Client
-	botUserID string
-	out       io.Writer
-	status    io.Writer
+	api            *goslack.Client
+	sm             *socketmode.Client
+	botUserID      string
+	includeBotSelf bool
+	out            io.Writer
+	status         io.Writer
 }
 
 // NewListener creates a Socket Mode listener.
 // botToken is the xoxb- token; appToken is the xapp- token.
 // botUserID is used to filter self-messages.
-func NewListener(botToken, appToken, botUserID string, out, status io.Writer) *Listener {
+// includeBotSelf disables the self-filter when true.
+func NewListener(botToken, appToken, botUserID string, includeBotSelf bool, out, status io.Writer) *Listener {
 	api := goslack.New(botToken, goslack.OptionAppLevelToken(appToken))
 	sm := socketmode.New(api)
 	return &Listener{
-		api:       api,
-		sm:        sm,
-		botUserID: botUserID,
-		out:       out,
-		status:    status,
+		api:            api,
+		sm:             sm,
+		botUserID:      botUserID,
+		includeBotSelf: includeBotSelf,
+		out:            out,
+		status:         status,
 	}
+}
+
+// shouldFilterSelf reports whether an event from the given user should be
+// suppressed because it was authored by the bot itself.
+func (l *Listener) shouldFilterSelf(user string) bool {
+	if l.includeBotSelf {
+		return false
+	}
+	return user == l.botUserID
 }
 
 // Run starts the Socket Mode connection and blocks until interrupted.
@@ -101,7 +113,7 @@ func (l *Listener) handleEvent(evt socketmode.Event) {
 func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 	switch ev := evt.InnerEvent.Data.(type) {
 	case *slackevents.AppMentionEvent:
-		if ev.User == l.botUserID {
+		if l.shouldFilterSelf(ev.User) {
 			return // Self-filter
 		}
 		l.emit(Event{
@@ -118,7 +130,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		if len(ev.Channel) == 0 || ev.Channel[0] != 'D' {
 			return
 		}
-		if ev.User == l.botUserID {
+		if l.shouldFilterSelf(ev.User) {
 			return // Self-filter: drop our own messages
 		}
 		// Skip message subtypes (edits, deletes, etc.) — only new messages in v1
@@ -135,7 +147,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		})
 
 	case *slackevents.ReactionAddedEvent:
-		if ev.User == l.botUserID {
+		if l.shouldFilterSelf(ev.User) {
 			return // Self-filter
 		}
 		l.emit(Event{
@@ -147,7 +159,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		})
 
 	case *slackevents.ReactionRemovedEvent:
-		if ev.User == l.botUserID {
+		if l.shouldFilterSelf(ev.User) {
 			return
 		}
 		l.emit(Event{
