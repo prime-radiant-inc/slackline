@@ -9,10 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var listenIncludeBotSelf bool
+var (
+	listenIncludeBotSelf bool
+	listenThreads        bool
+	listenAllMessages    bool
+)
 
 func init() {
 	listenCmd.Flags().BoolVar(&listenIncludeBotSelf, "include-bot-self", false, "include events authored by the bot itself (default: filtered)")
+	listenCmd.Flags().BoolVar(&listenThreads, "threads", false, "also emit thread_reply events for threads the bot has participated in")
+	listenCmd.Flags().BoolVar(&listenAllMessages, "all-messages", false, "firehose: emit every message in every channel the bot is in (implies --threads)")
 	rootCmd.AddCommand(listenCmd)
 }
 
@@ -45,6 +51,10 @@ func runListen(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: err.Error()}
 	}
 
-	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, listenIncludeBotSelf, os.Stdout, os.Stderr)
+	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, listen.ListenerOptions{
+		IncludeBotSelf: listenIncludeBotSelf,
+		Threads:        listenThreads || listenAllMessages,
+		AllMessages:    listenAllMessages,
+	}, os.Stdout, os.Stderr)
 	return listener.Run()
 }

@@ -18,25 +18,35 @@ type Listener struct {
 	api            *goslack.Client
 	sm             *socketmode.Client
 	botUserID      string
-	includeBotSelf bool
 	out            io.Writer
 	status         io.Writer
+	includeBotSelf bool
+	threads        bool
+	allMessages    bool
+}
+
+// ListenerOptions bundles per-mode flags for NewListener.
+type ListenerOptions struct {
+	IncludeBotSelf bool
+	Threads        bool
+	AllMessages    bool
 }
 
 // NewListener creates a Socket Mode listener.
 // botToken is the xoxb- token; appToken is the xapp- token.
 // botUserID is used to filter self-messages.
-// includeBotSelf disables the self-filter when true.
-func NewListener(botToken, appToken, botUserID string, includeBotSelf bool, out, status io.Writer) *Listener {
+func NewListener(botToken, appToken, botUserID string, opts ListenerOptions, out, status io.Writer) *Listener {
 	api := goslack.New(botToken, goslack.OptionAppLevelToken(appToken))
 	sm := socketmode.New(api)
 	return &Listener{
 		api:            api,
 		sm:             sm,
 		botUserID:      botUserID,
-		includeBotSelf: includeBotSelf,
 		out:            out,
 		status:         status,
+		includeBotSelf: opts.IncludeBotSelf,
+		threads:        opts.Threads,
+		allMessages:    opts.AllMessages,
 	}
 }
 
@@ -126,30 +136,69 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		})
 
 	case *slackevents.MessageEvent:
-		// Only handle DMs (im channel type starts with D)
-		if len(ev.Channel) == 0 || ev.Channel[0] != 'D' {
+		if len(ev.Channel) == 0 {
 			return
 		}
-		if l.shouldFilterSelf(ev.User) {
-			return // Self-filter: drop our own messages
+		// DM channels (D...) flow through the DM path.
+		if ev.Channel[0] == 'D' {
+			if l.shouldFilterSelf(ev.User) {
+				return
+			}
+			// Allow file_share subtype since it carries Files; skip other subtypes.
+			if ev.SubType != "" && ev.SubType != "file_share" {
+				return
+			}
+			l.emit(Event{
+				Type:     "dm",
+				Channel:  ev.Channel,
+				User:     ev.User,
+				Text:     ev.Text,
+				TS:       ev.TimeStamp,
+				ThreadTS: ev.ThreadTimeStamp,
+				Files:    convertMessageEventFiles(ev),
+			})
+			return
 		}
-		// Allow file_share subtype since it carries Files; skip other subtypes.
+		// Non-DM (C... public, G... private). Emit only when a mode allows it.
+		if l.shouldFilterSelf(ev.User) {
+			return
+		}
 		if ev.SubType != "" && ev.SubType != "file_share" {
 			return
 		}
-		var msgFiles []goslack.File
+		isThread := ev.ThreadTimeStamp != "" && ev.ThreadTimeStamp != ev.TimeStamp
+		parentUserID := ""
 		if ev.Message != nil {
-			msgFiles = ev.Message.Files
+			parentUserID = ev.Message.ParentUserId
 		}
-		l.emit(Event{
-			Type:     "dm",
-			Channel:  ev.Channel,
-			User:     ev.User,
-			Text:     ev.Text,
-			TS:       ev.TimeStamp,
-			ThreadTS: ev.ThreadTimeStamp,
-			Files:    convertFiles(msgFiles),
-		})
+		switch {
+		case l.allMessages:
+			eventType := "channel_message"
+			if isThread {
+				eventType = "thread_reply"
+			}
+			l.emit(Event{
+				Type:         eventType,
+				Channel:      ev.Channel,
+				User:         ev.User,
+				Text:         ev.Text,
+				TS:           ev.TimeStamp,
+				ThreadTS:     ev.ThreadTimeStamp,
+				ParentUserID: parentUserID,
+				Files:        convertMessageEventFiles(ev),
+			})
+		case l.threads && isThread && parentUserID == l.botUserID:
+			l.emit(Event{
+				Type:         "thread_reply",
+				Channel:      ev.Channel,
+				User:         ev.User,
+				Text:         ev.Text,
+				TS:           ev.TimeStamp,
+				ThreadTS:     ev.ThreadTimeStamp,
+				ParentUserID: parentUserID,
+				Files:        convertMessageEventFiles(ev),
+			})
+		}
 
 	case *slackevents.ReactionAddedEvent:
 		if l.shouldFilterSelf(ev.User) {
@@ -187,6 +236,15 @@ func (l *Listener) emit(e Event) {
 		return // Should never happen with simple structs
 	}
 	_, _ = fmt.Fprintln(l.out, string(data))
+}
+
+// convertMessageEventFiles extracts FileMeta from a MessageEvent. Files are
+// stored on the embedded Message field (populated by the custom unmarshaler).
+func convertMessageEventFiles(ev *slackevents.MessageEvent) []FileMeta {
+	if ev.Message == nil {
+		return nil
+	}
+	return convertFiles(ev.Message.Files)
 }
 
 func convertFiles(in []goslack.File) []FileMeta {

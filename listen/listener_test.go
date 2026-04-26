@@ -474,3 +474,109 @@ func TestHandleEventsAPI_DM_NoFilesOmitsArray(t *testing.T) {
 		t.Error("files key should be omitted when there are no attachments")
 	}
 }
+
+func TestHandleEventsAPI_ThreadsMode_BotParentReply(t *testing.T) {
+	l, buf := newTestListener()
+	l.threads = true
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:            "U999",
+		Text:            "thanks bot",
+		Channel:         "C01TESTCHAN",
+		TimeStamp:       "200.001",
+		ThreadTimeStamp: "100.000",
+		Message: &goslack.Msg{
+			ParentUserId: testBotUserID,
+		},
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	if lines[0]["type"] != "thread_reply" {
+		t.Errorf("type = %v, want thread_reply", lines[0]["type"])
+	}
+	if lines[0]["thread_ts"] != "100.000" {
+		t.Errorf("thread_ts = %v", lines[0]["thread_ts"])
+	}
+	if lines[0]["parent_user_id"] != testBotUserID {
+		t.Errorf("parent_user_id = %v", lines[0]["parent_user_id"])
+	}
+}
+
+func TestHandleEventsAPI_ThreadsMode_NotBotParentDropped(t *testing.T) {
+	l, buf := newTestListener()
+	l.threads = true
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:            "U999",
+		Text:            "talking among themselves",
+		Channel:         "C01TESTCHAN",
+		TimeStamp:       "200.001",
+		ThreadTimeStamp: "100.000",
+		Message: &goslack.Msg{
+			ParentUserId: "U_OTHER",
+		},
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("thread reply with non-bot parent should be dropped in --threads mode, got: %s", buf.String())
+	}
+}
+
+func TestHandleEventsAPI_ThreadsMode_NonThreadDropped(t *testing.T) {
+	l, buf := newTestListener()
+	l.threads = true
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      "U999",
+		Text:      "top-level channel msg",
+		Channel:   "C01TESTCHAN",
+		TimeStamp: "200.001",
+	}))
+
+	if buf.Len() != 0 {
+		t.Error("non-thread channel message should be dropped in --threads mode without --all-messages")
+	}
+}
+
+func TestHandleEventsAPI_AllMessagesMode_ChannelMessage(t *testing.T) {
+	l, buf := newTestListener()
+	l.allMessages = true
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      "U999",
+		Text:      "hi everyone",
+		Channel:   "C01TESTCHAN",
+		TimeStamp: "200.001",
+	}))
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	if lines[0]["type"] != "channel_message" {
+		t.Errorf("type = %v, want channel_message", lines[0]["type"])
+	}
+}
+
+func TestHandleEventsAPI_DefaultMode_ChannelMessageStillDropped(t *testing.T) {
+	l, buf := newTestListener()
+	// Default — no --threads, no --all-messages.
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:            "U999",
+		Text:            "thanks bot",
+		Channel:         "C01TESTCHAN",
+		TimeStamp:       "200.001",
+		ThreadTimeStamp: "100.000",
+		Message: &goslack.Msg{
+			ParentUserId: testBotUserID,
+		},
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("default mode should drop all channel messages, got: %s", buf.String())
+	}
+}
