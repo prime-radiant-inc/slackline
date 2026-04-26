@@ -171,3 +171,15 @@ func TestProvisionBootstrap_FromStdin(t *testing.T) {
 		t.Errorf("provision.json = %+v", got)
 	}
 }
+
+func TestCreate_RemovedReturnsMigrationError(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := runCreateRemoved(stdout, stderr)
+	if err == nil {
+		t.Fatal("expected error from removed `slackline create`")
+	}
+	if !strings.Contains(err.Error(), "provision") {
+		t.Errorf("error should mention 'provision' to guide migration, got: %v", err)
+	}
+}
