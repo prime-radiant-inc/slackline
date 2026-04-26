@@ -22,19 +22,17 @@ Installs to `~/.local/bin/slackline`. The script warns if that directory isn't i
 
 Two paths depending on your role.
 
-### Admin: create a new bot
+### Admin: provision a new bot
 
-You need an **App Configuration Token** from [api.slack.com/apps](https://api.slack.com/apps) → "Your App Configuration Tokens" → "Generate Token".
+See [Provisioning a new bot](#provisioning-a-new-bot) for the full agentic recipe. The short version:
 
 ```bash
-# First time: store your App Configuration Token
-slackline create --init
+# One-time per machine: store App Configuration Tokens
+slackline provision bootstrap
 
-# Create the Slack app (interactive — walks you through installation and token collection)
-slackline create --name my-bot-name
+# Per bot: create the Slack app (non-interactive, machine-readable JSON output)
+slackline provision my-bot-name > /tmp/prov.json
 ```
-
-`create` handles everything: manifest API, app installation, bot token, app token, writes config.
 
 ### Developer / agent: configure with existing tokens
 
@@ -59,14 +57,20 @@ Note: App Token shows `(configured)` not `(valid)` — app tokens can't be valid
 ### send
 
 ```bash
-slackline send --channel <channel> [--message <text>] [--thread <ts>]
+slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach <path>] ...
 echo "text" | slackline send --channel <channel>
 ```
 
-`--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin.
+`--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin. `--attach` may be repeated; message text is optional when at least one file is attached.
 
+Text-only output:
 ```json
 {"ok":true,"channel":"C...","ts":"1234567890.123456"}
+```
+
+With `--attach`:
+```json
+{"ok":true,"channel":"C...","thread_ts":"...","files":[{"id":"F...","title":"file.txt"}]}
 ```
 
 `thread_ts` is included in output only when `--thread` was passed.
@@ -98,20 +102,49 @@ Sends a message and polls the thread for replies from other users. Outputs repli
 ### listen
 
 ```bash
-slackline listen
+slackline listen [--threads] [--all-messages] [--include-bot-self]
 ```
 
 Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrupted. Requires both bot token and app token.
 
-Event types:
+| Flag | Effect |
+|------|--------|
+| (none) | `mention`, `dm`, `reaction_added`, `reaction_removed` only |
+| `--threads` | also emits `thread_reply` for threads the bot has participated in |
+| `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
+| `--include-bot-self` | do not filter out events from the bot's own user ID |
 
-```json
-{"type":"mention","channel":"C...","user":"U...","text":"<@UBOT> help","ts":"...","thread_ts":"..."}
-{"type":"dm","channel":"D...","user":"U...","text":"hello","ts":"..."}
-{"type":"reaction","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
+See [Event reference](#event-reference) for full event shapes. Status messages (`connected`, `reconnecting`, `disconnected`) go to stderr as plain text.
+
+### react
+
+```bash
+slackline react add    --channel <channel> --ts <ts> --emoji <name>
+slackline react remove --channel <channel> --ts <ts> --emoji <name>
 ```
 
-`thread_ts` on `mention` is omitted for top-level messages. Bot self-events are filtered. Status messages (`connected`, `reconnecting`, `disconnected`) go to stderr as plain text.
+Add or remove an emoji reaction on a message. Idempotent: `already_reacted` (on add) and `no_reaction` (on remove) are treated as success.
+
+```json
+{"ok":true,"channel":"C...","ts":"...","emoji":"thumbsup","action":"added"}
+{"ok":true,"no_op":true,"channel":"C...","ts":"...","emoji":"thumbsup","action":"added"}
+```
+
+`no_op: true` means the reaction was already in the desired state. Emoji colons are stripped automatically (`:thumbsup:` and `thumbsup` both work).
+
+### download
+
+```bash
+slackline download --file <file-id> --out <path>
+slackline download --file <file-id> --out -          # stream to stdout
+slackline download --file <file-id> --out <path> --force  # overwrite existing
+```
+
+Download a Slack file by ID (from a `files` array on a listen event). File IDs start with `F`. Default size cap is 100 MB; override with `SLACKLINE_MAX_DOWNLOAD_BYTES`. Disk writes use atomic `.tmp` + rename. On disk-write success, a summary is written to stderr:
+
+```json
+{"ok":true,"file":"F...","name":"report.pdf","mimetype":"application/pdf","size":12345,"path":"/tmp/report.pdf"}
+```
 
 ### channels
 
@@ -161,6 +194,121 @@ All errors write to stderr as JSON:
 ```
 
 To programmatically detect a broken bot token from `auth status` output, grep for `(invalid`.
+
+## Provisioning a new bot
+
+The `slackline-provision-bot` skill (in `skills/slackline-provision-bot/SKILL.md`) documents the full agentic recipe that drives browser automation for the steps Slack requires through their admin UI. The core CLI flow:
+
+```bash
+# 1. One-time per machine: seed provision.json.
+# Option A: env vars (CI/scripts).
+SLACKLINE_CONFIG_TOKEN=xoxe.xoxp-... \
+SLACKLINE_REFRESH_TOKEN=xoxe-... \
+slackline provision bootstrap
+
+# Option B: interactive (paste from https://api.slack.com/apps).
+slackline provision bootstrap
+
+# 2. Per bot: create the Slack app (no interaction, machine-readable JSON).
+slackline provision my-bot-name > /tmp/prov.json
+# stdout: {"ok":true,"app_id":"A...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+
+INSTALL_URL=$(jq -r .oauth_authorize_url /tmp/prov.json)
+# (browser automation: navigate to $INSTALL_URL, allow, collect xoxb- and xapp- tokens)
+
+# 3. Write config for the new bot.
+SLACKLINE_BOT_TOKEN="$BOT_TOKEN" \
+SLACKLINE_APP_TOKEN="$APP_TOKEN" \
+slackline init
+
+# 4. Verify.
+slackline auth status
+```
+
+The `slackline-provision-bot` skill contains the full browser selector reference and automation gotchas.
+
+## Event reference
+
+All `slackline listen` events are JSONL objects on stdout. Fields marked `?` are omitted when empty.
+
+### mention
+
+Emitted when the bot is @-mentioned in any channel it is in.
+
+```json
+{"type":"mention","channel":"C...","user":"U...","text":"<@UBOT> hello","ts":"...","thread_ts":"?","files":[{"id":"F...","name":"file.txt","mimetype":"text/plain","size":1234,"title":"file.txt"}]}
+```
+
+### dm
+
+Emitted for direct messages to the bot.
+
+```json
+{"type":"dm","channel":"D...","user":"U...","text":"hello","ts":"...","thread_ts":"?","files":[...]}
+```
+
+### thread_reply
+
+Emitted with `--threads` (for threads the bot participated in) or `--all-messages` (all threads).
+
+```json
+{"type":"thread_reply","channel":"C...","user":"U...","text":"reply","ts":"...","thread_ts":"...","parent_user_id":"U...","files":[...]}
+```
+
+### channel_message
+
+Emitted only with `--all-messages`. Top-level non-thread messages.
+
+```json
+{"type":"channel_message","channel":"C...","user":"U...","text":"hi","ts":"...","thread_ts":"?","parent_user_id":"?","files":[...]}
+```
+
+### reaction_added
+
+```json
+{"type":"reaction_added","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
+```
+
+### reaction_removed
+
+```json
+{"type":"reaction_removed","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
+```
+
+### File schema
+
+Files are present only when the sender attached files to the message. File objects contain no download URLs — use `slackline download --file ID --out PATH` to fetch content.
+
+```json
+{"id":"F...","name":"report.pdf","mimetype":"application/pdf","size":204800,"title":"Q1 Report"}
+```
+
+## Migration
+
+### reaction → reaction_added
+
+The `reaction` event type has been renamed to `reaction_added`. A new `reaction_removed` event type has been added. Update any listener code that matches `"type":"reaction"`.
+
+### slackline create removed
+
+`slackline create` (both `--init` and `--name` forms) has been replaced:
+
+| Old | New |
+|-----|-----|
+| `slackline create --init` | `slackline provision bootstrap` |
+| `slackline create --name my-bot` | `slackline provision my-bot` (then `slackline init` for per-developer config) |
+
+Running `slackline create` now exits with a usage error pointing to the new commands.
+
+### Manifest scope changes
+
+Existing bots provisioned before this release may need to be reinstalled (via their OAuth authorize URL) to pick up three new bot token scopes:
+
+- `reactions:write` — required by `slackline react add/remove`
+- `files:read` — required by `slackline download` and receiving file metadata in listen events
+- `files:write` — required by `slackline send --attach`
+
+Check current scopes at `https://api.slack.com/apps/<APP_ID>/oauth`. If the scopes are missing, re-run `slackline provision <name>` to get a fresh OAuth authorize URL, then reinstall.
 
 ## Development
 
