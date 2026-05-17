@@ -19,16 +19,20 @@ The full agentic recipe is below.
 ```bash
 # 1. Provision the app via API.
 slackline provision my-bot-name > /tmp/prov.json
-# stdout: {"ok":true,"app_id":"A...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+# stdout: {"ok":true,"app_id":"A...","effective_name":"...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+# Also check stderr: a `warning:` line appears if Slack mutated the app name
+# (e.g. stripped dashes — see PRI-1618). When that happens, the bot was
+# registered under `effective_name`, not the name you passed.
 
-INSTALL_URL=$(jq -r .oauth_authorize_url /tmp/prov.json)
+INSTALL_URL=$(jq -r .install_url /tmp/prov.json)
 OAUTH_PAGE=$(jq -r .oauth_page_url /tmp/prov.json)
 GENERAL_PAGE=$(jq -r .general_page_url /tmp/prov.json)
 ```
 
 ```text
 # 2. Drive browser:
-#    - navigate to $INSTALL_URL
+#    - navigate to $INSTALL_URL   (admin /install-on-team page — canonical entry)
+#    - click the "Install to Workspace" button on that page
 #    - click button[data-qa="oauth_submit_button"]   ("Allow")
 #    - navigate to $OAUTH_PAGE
 #    - click button.c-button.c-button--outline.c-button--small  (the "Copy" button — one per page on /oauth)

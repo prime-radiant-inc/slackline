@@ -79,11 +79,24 @@ func runProvisionWithDeps(name, description string, alwaysOnline bool, provPath,
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "create_app_failed", Detail: err.Error()}
 	}
 
+	// PRI-1618: Slack silently mutates app names (e.g., strips dashes). Read
+	// the canonical name back from apps.manifest.export and warn if it differs
+	// from what we asked for. Export failures are non-fatal — the app already
+	// exists and the caller can recover.
+	effectiveName, exportErr := postProvisionManifestExport(apiBase, prov.ConfigToken, createResp.AppID)
+	switch {
+	case exportErr != nil:
+		_, _ = fmt.Fprintf(stderr, "warning: could not verify registered app name (apps.manifest.export failed: %v)\n", exportErr)
+	case effectiveName != "" && effectiveName != name:
+		_, _ = fmt.Fprintf(stderr, "warning: app name %q was registered by Slack as %q\n", name, effectiveName)
+	}
+
 	out := struct {
 		OK                bool   `json:"ok"`
 		AppID             string `json:"app_id"`
 		TeamID            string `json:"team_id"`
 		TeamDomain        string `json:"team_domain"`
+		EffectiveName     string `json:"effective_name,omitempty"`
 		InstallURL        string `json:"install_url"`
 		OAuthAuthorizeURL string `json:"oauth_authorize_url"`
 		OAuthPageURL      string `json:"oauth_page_url"`
@@ -93,14 +106,39 @@ func runProvisionWithDeps(name, description string, alwaysOnline bool, provPath,
 		AppID:             createResp.AppID,
 		TeamID:            createResp.TeamID,
 		TeamDomain:        createResp.TeamDomain,
+		EffectiveName:     effectiveName,
 		InstallURL:        fmt.Sprintf("https://api.slack.com/apps/%s/install-on-team", createResp.AppID),
-		OAuthAuthorizeURL: createResp.OAuthAuthorizeURL,
+		OAuthAuthorizeURL: ensureTeamScopedAuthorizeURL(createResp.OAuthAuthorizeURL, createResp.TeamID),
 		OAuthPageURL:      fmt.Sprintf("https://api.slack.com/apps/%s/oauth", createResp.AppID),
 		GeneralPageURL:    fmt.Sprintf("https://api.slack.com/apps/%s/general", createResp.AppID),
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(out)
+}
+
+// ensureTeamScopedAuthorizeURL augments an oauth_authorize_url with the query
+// params Slack requires for a successful install (PRI-1619). The URL Slack
+// returns from apps.manifest.create omits `team=` and `install_redirect=`,
+// which makes it bounce with "Something went wrong when authorizing". Existing
+// params on the URL are preserved.
+func ensureTeamScopedAuthorizeURL(raw, teamID string) string {
+	if raw == "" || teamID == "" {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := u.Query()
+	if q.Get("team") == "" {
+		q.Set("team", teamID)
+	}
+	if q.Get("install_redirect") == "" {
+		q.Set("install_redirect", "install-on-team")
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // runProvisionBootstrapWithDeps is the testable core of `slackline provision bootstrap`.
@@ -199,4 +237,34 @@ func postProvisionManifestCreate(apiBase, configToken, manifestJSON string) (*pr
 		return nil, fmt.Errorf("apps.manifest.create: %s", out.Error)
 	}
 	return &out, nil
+}
+
+// postProvisionManifestExport calls apps.manifest.export and returns the
+// canonical app name (display_information.name) for the given app_id. Used to
+// detect when Slack has silently mutated the requested app name (PRI-1618).
+func postProvisionManifestExport(apiBase, configToken, appID string) (string, error) {
+	resp, err := http.PostForm(apiBase+"apps.manifest.export", url.Values{
+		"token":  {configToken},
+		"app_id": {appID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("manifest export POST failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var out struct {
+		OK       bool   `json:"ok"`
+		Error    string `json:"error,omitempty"`
+		Manifest struct {
+			DisplayInformation struct {
+				Name string `json:"name"`
+			} `json:"display_information"`
+		} `json:"manifest"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", fmt.Errorf("decode manifest.export: %w", err)
+	}
+	if !out.OK {
+		return "", fmt.Errorf("apps.manifest.export: %s", out.Error)
+	}
+	return out.Manifest.DisplayInformation.Name, nil
 }
