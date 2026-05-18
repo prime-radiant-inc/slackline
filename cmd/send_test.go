@@ -14,7 +14,7 @@ import (
 func TestSend_TextOnlyUsesPostMessage(t *testing.T) {
 	api := &fakeSlackAPI{}
 	stdout := &bytes.Buffer{}
-	err := runSendWithAPI(api, "C123", "hello", "", nil, stdout)
+	err := runSendWithAPI(api, fixtureChannelID, "hello", "", nil, stdout)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -32,12 +32,12 @@ func TestSend_WithSingleAttach(t *testing.T) {
 	_ = os.WriteFile(a, []byte("abc"), 0o600)
 
 	stdout := &bytes.Buffer{}
-	err := runSendWithAPI(api, "C123", "see this", "", []string{a}, stdout)
+	err := runSendWithAPI(api, fixtureChannelID, "see this", "", []string{a}, stdout)
 	if err != nil {
 		t.Fatalf("send failed: %v", err)
 	}
 	got := api.lastUploadFilesCall
-	if got.channelID != "C123" {
+	if got.channelID != fixtureChannelID {
 		t.Errorf("channel = %q", got.channelID)
 	}
 	if got.initialComment != "see this" {
@@ -61,7 +61,7 @@ func TestSend_AttachWithoutMessage(t *testing.T) {
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "f")
 	_ = os.WriteFile(p, []byte("x"), 0o600)
-	if err := runSendWithAPI(api, "C123", "", "", []string{p}, &bytes.Buffer{}); err != nil {
+	if err := runSendWithAPI(api, fixtureChannelID, "", "", []string{p}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("send without message failed: %v", err)
 	}
 	if api.lastUploadFilesCall.initialComment != "" {
@@ -76,7 +76,7 @@ func TestSend_AttachInThread(t *testing.T) {
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "f")
 	_ = os.WriteFile(p, []byte("x"), 0o600)
-	if err := runSendWithAPI(api, "C123", "", "1000.000", []string{p}, &bytes.Buffer{}); err != nil {
+	if err := runSendWithAPI(api, fixtureChannelID, "", "1000.000", []string{p}, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	if api.lastUploadFilesCall.threadTS != "1000.000" {
@@ -93,7 +93,7 @@ func TestSend_AttachMultipleFiles(t *testing.T) {
 	b := filepath.Join(tmp, "b")
 	_ = os.WriteFile(a, []byte("a"), 0o600)
 	_ = os.WriteFile(b, []byte("b"), 0o600)
-	if err := runSendWithAPI(api, "C123", "two files", "", []string{a, b}, &bytes.Buffer{}); err != nil {
+	if err := runSendWithAPI(api, fixtureChannelID, "two files", "", []string{a, b}, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(api.lastUploadFilesCall.files) != 2 {
@@ -103,7 +103,7 @@ func TestSend_AttachMultipleFiles(t *testing.T) {
 
 func TestSend_AttachMissingFile(t *testing.T) {
 	api := &fakeSlackAPI{}
-	err := runSendWithAPI(api, "C123", "", "", []string{"/nonexistent/file.txt"}, &bytes.Buffer{})
+	err := runSendWithAPI(api, fixtureChannelID, "", "", []string{"/nonexistent/file.txt"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -115,7 +115,7 @@ func TestSend_AttachExceedsSizeCap(t *testing.T) {
 	p := filepath.Join(tmp, "big")
 	_ = os.WriteFile(p, bytes.Repeat([]byte("x"), 200), 0o600)
 	t.Setenv("SLACKLINE_MAX_UPLOAD_BYTES", "100")
-	err := runSendWithAPI(api, "C123", "", "", []string{p}, &bytes.Buffer{})
+	err := runSendWithAPI(api, fixtureChannelID, "", "", []string{p}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected size-cap error")
 	}

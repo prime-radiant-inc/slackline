@@ -15,6 +15,11 @@ import (
 	"github.com/prime-radiant-inc/slackline/config"
 )
 
+const (
+	fixtureOldConfigToken  = "xoxe.old"
+	fixtureOldRefreshToken = "xoxe-oldref"
+)
+
 func writeProvisionFile(t *testing.T, dir string, cfg *config.ProvisionConfig) string {
 	t.Helper()
 	path := filepath.Join(dir, "provision.json")
@@ -46,8 +51,8 @@ func TestProvision_NameSuccess(t *testing.T) {
 
 	tmp := t.TempDir()
 	provPath := writeProvisionFile(t, tmp, &config.ProvisionConfig{
-		ConfigToken:  "xoxe.old",
-		RefreshToken: "xoxe-oldref",
+		ConfigToken:  fixtureOldConfigToken,
+		RefreshToken: fixtureOldRefreshToken,
 	})
 
 	stdout := &bytes.Buffer{}
@@ -138,8 +143,8 @@ func TestProvision_NameMutatedBySlack(t *testing.T) {
 
 	tmp := t.TempDir()
 	provPath := writeProvisionFile(t, tmp, &config.ProvisionConfig{
-		ConfigToken:  "xoxe.old",
-		RefreshToken: "xoxe-oldref",
+		ConfigToken:  fixtureOldConfigToken,
+		RefreshToken: fixtureOldRefreshToken,
 	})
 
 	stdout := &bytes.Buffer{}
@@ -193,8 +198,8 @@ func TestProvision_ExportFailureDoesNotFail(t *testing.T) {
 
 	tmp := t.TempDir()
 	provPath := writeProvisionFile(t, tmp, &config.ProvisionConfig{
-		ConfigToken:  "xoxe.old",
-		RefreshToken: "xoxe-oldref",
+		ConfigToken:  fixtureOldConfigToken,
+		RefreshToken: fixtureOldRefreshToken,
 	})
 
 	stdout := &bytes.Buffer{}

@@ -11,6 +11,13 @@ import (
 	goslack "github.com/slack-go/slack"
 )
 
+const (
+	fixtureMessageTS  = "123.456"
+	fixtureChannelID  = "C123"
+	fixtureUserID     = "U123"
+	fixtureEmojiThumb = "thumbsup"
+)
+
 // uploadFilesCall records arguments from a single UploadFiles invocation.
 type uploadFilesCall struct {
 	channelID      string
@@ -240,7 +247,7 @@ func TestFetchHistory_ChronologicalOrder(t *testing.T) {
 		},
 	}
 
-	msgs, err := fetchHistory(api, "C123", "", 10)
+	msgs, err := fetchHistory(api, fixtureChannelID, "", 10)
 	if err != nil {
 		t.Fatalf("fetchHistory returned error: %v", err)
 	}
@@ -271,7 +278,7 @@ func TestFetchHistory_RespectsLimit(t *testing.T) {
 		},
 	}
 
-	msgs, err := fetchHistory(api, "C123", "", 5)
+	msgs, err := fetchHistory(api, fixtureChannelID, "", 5)
 	if err != nil {
 		t.Fatalf("fetchHistory returned error: %v", err)
 	}
@@ -280,7 +287,7 @@ func TestFetchHistory_RespectsLimit(t *testing.T) {
 	}
 
 	// Also test that limit truncates.
-	msgs, err = fetchHistory(api, "C123", "", 3)
+	msgs, err = fetchHistory(api, fixtureChannelID, "", 3)
 	if err != nil {
 		t.Fatalf("fetchHistory returned error: %v", err)
 	}
@@ -302,7 +309,7 @@ func TestFetchHistory_WithOldest(t *testing.T) {
 		},
 	}
 
-	_, err := fetchHistory(api, "C123", "1.5", 10)
+	_, err := fetchHistory(api, fixtureChannelID, "1.5", 10)
 	if err != nil {
 		t.Fatalf("fetchHistory returned error: %v", err)
 	}
@@ -325,7 +332,7 @@ func TestFetchReplies_ReturnsMessages(t *testing.T) {
 		},
 	}
 
-	msgs, err := fetchReplies(api, "C123", ts1, "", 10)
+	msgs, err := fetchReplies(api, fixtureChannelID, ts1, "", 10)
 	if err != nil {
 		t.Fatalf("fetchReplies returned error: %v", err)
 	}
@@ -350,7 +357,7 @@ func TestFetchReplies_RespectsLimit(t *testing.T) {
 		},
 	}
 
-	msgs, err := fetchReplies(api, "C123", ts1, "", 2)
+	msgs, err := fetchReplies(api, fixtureChannelID, ts1, "", 2)
 	if err != nil {
 		t.Fatalf("fetchReplies returned error: %v", err)
 	}
@@ -363,8 +370,8 @@ func TestFetchReplies_RespectsLimit(t *testing.T) {
 
 func TestMessageOutput_JSONL(t *testing.T) {
 	out := messageOutput{
-		TS:   "123.456",
-		User: "U123",
+		TS:   fixtureMessageTS,
+		User: fixtureUserID,
 		Text: "hello world",
 	}
 	data, err := json.Marshal(out)
@@ -375,11 +382,11 @@ func TestMessageOutput_JSONL(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("json.Unmarshal failed: %v", err)
 	}
-	if decoded["ts"] != "123.456" {
-		t.Errorf("ts = %v, want %q", decoded["ts"], "123.456")
+	if decoded["ts"] != fixtureMessageTS {
+		t.Errorf("ts = %v, want %q", decoded["ts"], fixtureMessageTS)
 	}
-	if decoded["user"] != "U123" {
-		t.Errorf("user = %v, want %q", decoded["user"], "U123")
+	if decoded["user"] != fixtureUserID {
+		t.Errorf("user = %v, want %q", decoded["user"], fixtureUserID)
 	}
 	if decoded["text"] != "hello world" {
 		t.Errorf("text = %v, want %q", decoded["text"], "hello world")
@@ -392,8 +399,8 @@ func TestMessageOutput_JSONL(t *testing.T) {
 
 func TestMessageOutput_JSONL_WithThreadTS(t *testing.T) {
 	out := messageOutput{
-		TS:       "123.456",
-		User:     "U123",
+		TS:       fixtureMessageTS,
+		User:     fixtureUserID,
 		Text:     "reply",
 		ThreadTS: "100.000",
 	}

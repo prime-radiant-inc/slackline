@@ -14,7 +14,7 @@ func TestReactAdd_Success(t *testing.T) {
 	api := &fakeSlackAPI{}
 	stdout := &bytes.Buffer{}
 
-	err := runReactAddWithAPI(api, "C123", "100.001", "thumbsup", stdout)
+	err := runReactAddWithAPI(api, fixtureChannelID, "100.001", fixtureEmojiThumb, stdout)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -22,10 +22,10 @@ func TestReactAdd_Success(t *testing.T) {
 		t.Fatalf("expected 1 AddReaction call, got %d", len(api.reactionsAdded))
 	}
 	got := api.reactionsAdded[0]
-	if got.Name != "thumbsup" {
+	if got.Name != fixtureEmojiThumb {
 		t.Errorf("name = %q, want thumbsup", got.Name)
 	}
-	if got.Item.Channel != "C123" || got.Item.Timestamp != "100.001" {
+	if got.Item.Channel != fixtureChannelID || got.Item.Timestamp != "100.001" {
 		t.Errorf("item = %+v", got.Item)
 	}
 
@@ -39,14 +39,14 @@ func TestReactAdd_Success(t *testing.T) {
 	if out["action"] != "added" {
 		t.Errorf("action = %v", out["action"])
 	}
-	if out["emoji"] != "thumbsup" {
+	if out["emoji"] != fixtureEmojiThumb {
 		t.Errorf("emoji = %v", out["emoji"])
 	}
 }
 
 func TestReactAdd_StripsColons(t *testing.T) {
 	api := &fakeSlackAPI{}
-	_ = runReactAddWithAPI(api, "C123", "100", ":party:", &bytes.Buffer{})
+	_ = runReactAddWithAPI(api, fixtureChannelID, "100", ":party:", &bytes.Buffer{})
 	if api.reactionsAdded[0].Name != "party" {
 		t.Errorf("name = %q, want party (colons stripped)", api.reactionsAdded[0].Name)
 	}
@@ -55,7 +55,7 @@ func TestReactAdd_StripsColons(t *testing.T) {
 func TestReactAdd_AlreadyReactedIsIdempotent(t *testing.T) {
 	api := &fakeSlackAPI{addReactionErr: errors.New("already_reacted")}
 	stdout := &bytes.Buffer{}
-	err := runReactAddWithAPI(api, "C123", "100", "thumbsup", stdout)
+	err := runReactAddWithAPI(api, fixtureChannelID, "100", fixtureEmojiThumb, stdout)
 	if err != nil {
 		t.Fatalf("expected no error for already_reacted, got: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestReactAdd_AlreadyReactedIsIdempotent(t *testing.T) {
 
 func TestReactAdd_OtherError(t *testing.T) {
 	api := &fakeSlackAPI{addReactionErr: errors.New("channel_not_found")}
-	err := runReactAddWithAPI(api, "C123", "100", "thumbsup", &bytes.Buffer{})
+	err := runReactAddWithAPI(api, fixtureChannelID, "100", fixtureEmojiThumb, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected error to propagate")
 	}
@@ -83,14 +83,14 @@ func TestReactAdd_OtherError(t *testing.T) {
 func TestReactRemove_Success(t *testing.T) {
 	api := &fakeSlackAPI{}
 	stdout := &bytes.Buffer{}
-	err := runReactRemoveWithAPI(api, "C123", "100.001", "thumbsup", stdout)
+	err := runReactRemoveWithAPI(api, fixtureChannelID, "100.001", fixtureEmojiThumb, stdout)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(api.reactionsRemoved) != 1 {
 		t.Fatalf("expected 1 RemoveReaction call, got %d", len(api.reactionsRemoved))
 	}
-	if api.reactionsRemoved[0] != (capturedReaction{Name: "thumbsup", Item: goslack.ItemRef{Channel: "C123", Timestamp: "100.001"}}) {
+	if api.reactionsRemoved[0] != (capturedReaction{Name: fixtureEmojiThumb, Item: goslack.ItemRef{Channel: fixtureChannelID, Timestamp: "100.001"}}) {
 		t.Errorf("captured: %+v", api.reactionsRemoved[0])
 	}
 	var out map[string]interface{}
@@ -103,7 +103,7 @@ func TestReactRemove_Success(t *testing.T) {
 func TestReactRemove_NoReactionIsIdempotent(t *testing.T) {
 	api := &fakeSlackAPI{removeReactionErr: errors.New("no_reaction")}
 	stdout := &bytes.Buffer{}
-	err := runReactRemoveWithAPI(api, "C123", "100", "thumbsup", stdout)
+	err := runReactRemoveWithAPI(api, fixtureChannelID, "100", fixtureEmojiThumb, stdout)
 	if err != nil {
 		t.Fatalf("expected no error for no_reaction, got: %v", err)
 	}

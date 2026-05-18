@@ -8,6 +8,8 @@ import (
 	goslack "github.com/slack-go/slack"
 )
 
+const fixtureChannelID = "C01ABC23DEF"
+
 // fakeAPI implements SlackAPI for testing channel resolution.
 type fakeAPI struct {
 	channels []goslack.Channel
@@ -73,7 +75,7 @@ func TestResolveChannel_RawID(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"C01ABC23DEF", "C01ABC23DEF"},
+		{fixtureChannelID, fixtureChannelID},
 		{"G01ABC23DEF", "G01ABC23DEF"},
 		{"D01ABC23DEF", "D01ABC23DEF"},
 	}
@@ -100,17 +102,17 @@ func TestResolveChannel_URL(t *testing.T) {
 		{
 			name:  "archives URL",
 			input: "https://myteam.slack.com/archives/C01ABC23DEF",
-			want:  "C01ABC23DEF",
+			want:  fixtureChannelID,
 		},
 		{
 			name:  "messages URL with timestamp",
 			input: "https://myteam.slack.com/archives/C01ABC23DEF/p1234567890",
-			want:  "C01ABC23DEF",
+			want:  fixtureChannelID,
 		},
 		{
 			name:  "app.slack.com client URL",
 			input: "https://app.slack.com/client/T01234567/C01ABC23DEF",
-			want:  "C01ABC23DEF",
+			want:  fixtureChannelID,
 		},
 	}
 

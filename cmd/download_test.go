@@ -12,7 +12,10 @@ import (
 	goslack "github.com/slack-go/slack"
 )
 
-const testFileContent = "hello"
+const (
+	testFileContent = "hello"
+	fixtureFileName = "a.txt"
+)
 
 func TestDownload_ToPath(t *testing.T) {
 	api := &fakeSlackAPI{
@@ -43,7 +46,7 @@ func TestDownload_ToPath(t *testing.T) {
 
 func TestDownload_ToStdout(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: "a.txt", Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "https://files.slack.com/F1"},
 		getFileBytes:    []byte(testFileContent),
 	}
 	stdout := &bytes.Buffer{}
@@ -57,7 +60,7 @@ func TestDownload_ToStdout(t *testing.T) {
 
 func TestDownload_ExistingFileNoForce(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: "a.txt", Size: 5, URLPrivate: "x"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "x"},
 		getFileBytes:    []byte(testFileContent),
 	}
 	tmp := t.TempDir()
@@ -76,7 +79,7 @@ func TestDownload_ExistingFileNoForce(t *testing.T) {
 
 func TestDownload_ExistingFileForce(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: "a.txt", Size: 5, URLPrivate: "x"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "x"},
 		getFileBytes:    []byte("new"), //nolint:goconst // unique value used only in force-overwrite test
 	}
 	tmp := t.TempDir()
