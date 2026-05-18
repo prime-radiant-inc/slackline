@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-05-18
+
+### Changed
+- Hoisted repeated string literals to named constants across the codebase. Wire-format strings (event types in `listen`, manifest scopes and bot events in `provision`, error codes in `errs`) now have a single source of truth, and test fixtures are file-local constants. No behavior change — emitted strings are byte-for-byte identical.
+
 ## [0.2.1] - 2026-05-18
 
 ### Fixed
