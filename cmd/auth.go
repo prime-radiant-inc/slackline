@@ -28,7 +28,7 @@ func init() {
 func runAuthStatus(cmd *cobra.Command, args []string) error {
 	cfg, cfgPath, err := loadConfig()
 	if err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 
 	// Validate bot token

@@ -52,10 +52,10 @@ var sendCmd = &cobra.Command{
 
 		cfg, _, err := loadConfig()
 		if err != nil {
-			return &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+			return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 		}
 		if cfg.Bot.BotToken == "" {
-			return &errs.SlackError{Code: errs.Config, Err: "no_token", Detail: "Run 'slackline init' to set up."}
+			return &errs.SlackError{Code: errs.Config, Err: errs.CodeNoToken, Detail: "Run 'slackline init' to set up."}
 		}
 		api := slackpkg.NewClient(cfg.Bot.BotToken)
 		channelID, err := resolveChannel(api, sendChannel)

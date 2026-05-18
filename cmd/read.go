@@ -55,10 +55,10 @@ type fileMetaJSON struct {
 func runRead(cmd *cobra.Command, args []string) error {
 	cfg, _, err := loadConfig()
 	if err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 	if cfg.Bot.BotToken == "" {
-		return &errs.SlackError{Code: errs.Config, Err: "no_token", Detail: "No bot token configured. Run 'slackline init' to set up."}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeNoToken, Detail: "No bot token configured. Run 'slackline init' to set up."}
 	}
 
 	api := slackpkg.NewClient(cfg.Bot.BotToken)

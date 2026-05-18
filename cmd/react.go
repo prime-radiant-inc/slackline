@@ -71,10 +71,10 @@ func init() {
 func loadReactAPI() (slackpkg.SlackAPI, error) {
 	cfg, _, err := loadConfig()
 	if err != nil {
-		return nil, &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+		return nil, &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 	if cfg.Bot.BotToken == "" {
-		return nil, &errs.SlackError{Code: errs.Config, Err: "no_token", Detail: "Run 'slackline init' first."}
+		return nil, &errs.SlackError{Code: errs.Config, Err: errs.CodeNoToken, Detail: "Run 'slackline init' first."}
 	}
 	return slackpkg.NewClient(cfg.Bot.BotToken), nil
 }

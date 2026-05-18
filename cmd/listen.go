@@ -32,10 +32,10 @@ var listenCmd = &cobra.Command{
 func runListen(cmd *cobra.Command, args []string) error {
 	cfg, _, err := loadConfig()
 	if err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 	if cfg.Bot.BotToken == "" {
-		return &errs.SlackError{Code: errs.Config, Err: "no_token", Detail: "No bot token configured. Run 'slackline init' to set up."}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeNoToken, Detail: "No bot token configured. Run 'slackline init' to set up."}
 	}
 	if cfg.Bot.AppToken == "" {
 		return &errs.SlackError{Code: errs.Config, Err: "no_app_token", Detail: "No app token configured. Socket Mode requires an app token (xapp-)."}
@@ -48,7 +48,7 @@ func runListen(cmd *cobra.Command, args []string) error {
 		if isAuthError(err) {
 			return errs.AuthError(err.Error())
 		}
-		return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: err.Error()}
 	}
 
 	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, listen.ListenerOptions{

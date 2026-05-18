@@ -59,10 +59,10 @@ func runAsk(cmd *cobra.Command, args []string) error {
 
 	cfg, _, err := loadConfig()
 	if err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "config_error", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 	if cfg.Bot.BotToken == "" {
-		return &errs.SlackError{Code: errs.Config, Err: "missing_token", Detail: "No bot token configured. Run 'slackline init'."}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeMissingToken, Detail: "No bot token configured. Run 'slackline init'."}
 	}
 
 	api := slackpkg.NewClient(cfg.Bot.BotToken)
@@ -73,7 +73,7 @@ func runAsk(cmd *cobra.Command, args []string) error {
 		if isAuthError(err) {
 			return errs.AuthError(err.Error())
 		}
-		return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: err.Error()}
 	}
 	botUserID := authResp.UserID
 

@@ -65,7 +65,7 @@ func runProvisionWithDeps(name, description string, alwaysOnline bool, provPath,
 	prov.ConfigToken = newToken
 	prov.RefreshToken = newRefresh
 	if err := config.SaveProvision(prov, provPath); err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "save_failed", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeSaveFailed, Detail: err.Error()}
 	}
 
 	manifest := provision.GenerateManifest(name, description, alwaysOnline)
@@ -152,7 +152,7 @@ func runProvisionBootstrapWithDeps(provPath string, stdin io.Reader, stderr io.W
 	case cfgTok != "" || refTok != "":
 		return &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "missing_token",
+			Err:    errs.CodeMissingToken,
 			Detail: "Set both SLACKLINE_CONFIG_TOKEN and SLACKLINE_REFRESH_TOKEN, or unset both to be prompted via stdin.",
 		}
 	default:
@@ -177,7 +177,7 @@ func runProvisionBootstrapWithDeps(provPath string, stdin io.Reader, stderr io.W
 
 	prov := &config.ProvisionConfig{ConfigToken: cfgTok, RefreshToken: refTok}
 	if err := config.SaveProvision(prov, provPath); err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "save_failed", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeSaveFailed, Detail: err.Error()}
 	}
 	_, _ = fmt.Fprintln(stderr, "✓ provision.json written.")
 	return nil

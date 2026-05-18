@@ -44,21 +44,21 @@ func readEnvInputs() (*initEnvInputs, error) {
 	if bot == "" || app == "" {
 		return nil, &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "missing_token",
+			Err:    errs.CodeMissingToken,
 			Detail: "set both SLACKLINE_BOT_TOKEN and SLACKLINE_APP_TOKEN for non-interactive mode",
 		}
 	}
 	if !strings.HasPrefix(bot, "xoxb-") {
 		return nil, &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "invalid_token",
+			Err:    errs.CodeInvalidToken,
 			Detail: "SLACKLINE_BOT_TOKEN must start with 'xoxb-'",
 		}
 	}
 	if !strings.HasPrefix(app, "xapp-") {
 		return nil, &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "invalid_token",
+			Err:    errs.CodeInvalidToken,
 			Detail: "SLACKLINE_APP_TOKEN must start with 'xapp-'",
 		}
 	}
@@ -78,7 +78,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			if isAuthError(authErr) {
 				return errs.AuthError(authErr.Error())
 			}
-			return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: fmt.Sprintf("Bot token validation failed: %v", authErr)}
+			return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: fmt.Sprintf("Bot token validation failed: %v", authErr)}
 		}
 
 		cfgPath := cfgFile
@@ -103,7 +103,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			},
 		}
 		if err := config.Save(cfg, cfgPath); err != nil {
-			return &errs.SlackError{Code: errs.Config, Err: "save_failed", Detail: err.Error()}
+			return &errs.SlackError{Code: errs.Config, Err: errs.CodeSaveFailed, Detail: err.Error()}
 		}
 
 		fmt.Fprintf(os.Stderr, "\n✓ Config written to %s\n", cfgPath)
@@ -127,7 +127,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if !strings.HasPrefix(botToken, "xoxb-") {
 		return &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "invalid_token",
+			Err:    errs.CodeInvalidToken,
 			Detail: "Bot token must start with 'xoxb-'. You may have pasted the wrong token type.",
 		}
 	}
@@ -139,7 +139,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if !strings.HasPrefix(appToken, "xapp-") {
 		return &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "invalid_token",
+			Err:    errs.CodeInvalidToken,
 			Detail: "App token must start with 'xapp-'. You may have pasted the wrong token type.",
 		}
 	}
@@ -151,7 +151,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if isAuthError(err) {
 			return errs.AuthError(err.Error())
 		}
-		return &errs.SlackError{Code: errs.SlackAPI, Err: "auth_test_failed", Detail: fmt.Sprintf("Bot token validation failed: %v", err)}
+		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: fmt.Sprintf("Bot token validation failed: %v", err)}
 	}
 
 	// Resolve config path: --config flag → SLACKLINE_CONFIG env → DefaultPath()
@@ -178,7 +178,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := config.Save(cfg, cfgPath); err != nil {
-		return &errs.SlackError{Code: errs.Config, Err: "save_failed", Detail: err.Error()}
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeSaveFailed, Detail: err.Error()}
 	}
 
 	fmt.Fprintf(os.Stderr, "\n✓ Config written to %s\n", cfgPath)

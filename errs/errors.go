@@ -14,6 +14,17 @@ const (
 	Usage    = 4
 )
 
+// Error code strings used in SlackError.Err. These are wire format — they
+// appear in machine-readable JSON output and are keyed on by callers/tests.
+const (
+	CodeConfigError    = "config_error"
+	CodeNoToken        = "no_token"
+	CodeMissingToken   = "missing_token"
+	CodeInvalidToken   = "invalid_token"
+	CodeAuthTestFailed = "auth_test_failed"
+	CodeSaveFailed     = "save_failed"
+)
+
 // SlackError represents an error with an associated exit code.
 type SlackError struct {
 	Code   int
