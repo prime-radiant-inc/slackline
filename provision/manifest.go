@@ -1,5 +1,31 @@
 package provision
 
+// Slack manifest bot-event names and OAuth bot scopes. These are wire format
+// for Slack's apps.manifest.create endpoint; treat them as constants in one
+// place so the tests can reuse the exact same strings.
+const (
+	EventAppMention      = "app_mention"
+	EventMessageIM       = "message.im"
+	EventMessageChannels = "message.channels"
+	EventMessageGroups   = "message.groups"
+	EventReactionAdded   = "reaction_added"
+	EventReactionRemoved = "reaction_removed"
+
+	ScopeChatWrite       = "chat:write"
+	ScopeChannelsRead    = "channels:read"
+	ScopeGroupsRead      = "groups:read"
+	ScopeChannelsHistory = "channels:history"
+	ScopeGroupsHistory   = "groups:history"
+	ScopeAppMentionsRead = "app_mentions:read"
+	ScopeIMHistory       = "im:history"
+	ScopeIMRead          = "im:read"
+	ScopeReactionsRead   = "reactions:read"
+	ScopeReactionsWrite  = "reactions:write"
+	ScopeUsersRead       = "users:read"
+	ScopeFilesRead       = "files:read"
+	ScopeFilesWrite      = "files:write"
+)
+
 // Manifest represents a Slack app manifest for provisioning bot identities.
 type Manifest struct {
 	DisplayInfo DisplayInfo `json:"display_information"`
@@ -70,31 +96,31 @@ func GenerateManifest(appName, description string, alwaysOnline bool) *Manifest 
 			SocketModeEnabled: true,
 			EventSubscriptions: EventSubscriptions{
 				BotEvents: []string{
-					"app_mention",
-					"message.im",
-					"message.channels",
-					"message.groups",
-					"reaction_added",
-					"reaction_removed",
+					EventAppMention,
+					EventMessageIM,
+					EventMessageChannels,
+					EventMessageGroups,
+					EventReactionAdded,
+					EventReactionRemoved,
 				},
 			},
 		},
 		OAuthConfig: OAuthConfig{
 			Scopes: Scopes{
 				Bot: []string{
-					"chat:write",
-					"channels:read",
-					"groups:read",
-					"channels:history",
-					"groups:history",
-					"app_mentions:read",
-					"im:history",
-					"im:read",
-					"reactions:read",
-					"reactions:write",
-					"users:read",
-					"files:read",
-					"files:write",
+					ScopeChatWrite,
+					ScopeChannelsRead,
+					ScopeGroupsRead,
+					ScopeChannelsHistory,
+					ScopeGroupsHistory,
+					ScopeAppMentionsRead,
+					ScopeIMHistory,
+					ScopeIMRead,
+					ScopeReactionsRead,
+					ScopeReactionsWrite,
+					ScopeUsersRead,
+					ScopeFilesRead,
+					ScopeFilesWrite,
 				},
 			},
 		},

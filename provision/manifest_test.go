@@ -8,16 +8,16 @@ import (
 func TestGenerateManifest_ContainsRequiredScopes(t *testing.T) {
 	m := GenerateManifest("test-bot", "", false)
 	requiredScopes := []string{
-		"chat:write",
-		"channels:read",
-		"groups:read",
-		"channels:history",
-		"groups:history",
-		"app_mentions:read",
-		"im:history",
-		"im:read",
-		"reactions:read",
-		"users:read",
+		ScopeChatWrite,
+		ScopeChannelsRead,
+		ScopeGroupsRead,
+		ScopeChannelsHistory,
+		ScopeGroupsHistory,
+		ScopeAppMentionsRead,
+		ScopeIMHistory,
+		ScopeIMRead,
+		ScopeReactionsRead,
+		ScopeUsersRead,
 	}
 	for _, scope := range requiredScopes {
 		found := false
@@ -42,7 +42,7 @@ func TestGenerateManifest_SocketModeEnabled(t *testing.T) {
 
 func TestGenerateManifest_EventSubscriptions(t *testing.T) {
 	m := GenerateManifest("test-bot", "", false)
-	requiredEvents := []string{"app_mention", "message.im", "reaction_added"}
+	requiredEvents := []string{EventAppMention, EventMessageIM, EventReactionAdded}
 	for _, event := range requiredEvents {
 		found := false
 		for _, e := range m.Settings.EventSubscriptions.BotEvents {
@@ -79,19 +79,19 @@ func TestGenerateManifest_Golden(t *testing.T) {
 	m := GenerateManifest("my-bot", "", false)
 
 	wantScopes := map[string]bool{
-		"chat:write":        true,
-		"channels:read":     true,
-		"groups:read":       true,
-		"channels:history":  true,
-		"groups:history":    true,
-		"app_mentions:read": true,
-		"im:history":        true,
-		"im:read":           true,
-		"reactions:read":    true,
-		"reactions:write":   true,
-		"users:read":        true,
-		"files:read":        true,
-		"files:write":       true,
+		ScopeChatWrite:       true,
+		ScopeChannelsRead:    true,
+		ScopeGroupsRead:      true,
+		ScopeChannelsHistory: true,
+		ScopeGroupsHistory:   true,
+		ScopeAppMentionsRead: true,
+		ScopeIMHistory:       true,
+		ScopeIMRead:          true,
+		ScopeReactionsRead:   true,
+		ScopeReactionsWrite:  true,
+		ScopeUsersRead:       true,
+		ScopeFilesRead:       true,
+		ScopeFilesWrite:      true,
 	}
 	gotScopes := map[string]bool{}
 	for _, s := range m.OAuthConfig.Scopes.Bot {
@@ -112,12 +112,12 @@ func TestGenerateManifest_Golden(t *testing.T) {
 	}
 
 	wantEvents := map[string]bool{
-		"app_mention":      true,
-		"message.im":       true,
-		"reaction_added":   true,
-		"reaction_removed": true,
-		"message.channels": true,
-		"message.groups":   true,
+		EventAppMention:      true,
+		EventMessageIM:       true,
+		EventReactionAdded:   true,
+		EventReactionRemoved: true,
+		EventMessageChannels: true,
+		EventMessageGroups:   true,
 	}
 	gotEvents := map[string]bool{}
 	for _, e := range m.Settings.EventSubscriptions.BotEvents {
