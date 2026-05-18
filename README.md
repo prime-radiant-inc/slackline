@@ -249,7 +249,7 @@ Emitted for direct messages to the bot.
 
 ### thread_reply
 
-Emitted with `--threads` (for threads the bot participated in) or `--all-messages` (all threads).
+Emitted by default whenever someone replies in a thread the bot started (parent message authored by the bot). With `--all-messages`, also emitted for all thread replies in subscribed channels. `--threads` is accepted for backward compatibility but is currently a no-op — bot-parent thread replies are always emitted.
 
 ```json
 {"type":"thread_reply","channel":"C...","user":"U...","text":"reply","ts":"...","thread_ts":"...","parent_user_id":"U...","files":[...]}

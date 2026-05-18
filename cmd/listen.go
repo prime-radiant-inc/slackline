@@ -17,7 +17,7 @@ var (
 
 func init() {
 	listenCmd.Flags().BoolVar(&listenIncludeBotSelf, "include-bot-self", false, "include events authored by the bot itself (default: filtered)")
-	listenCmd.Flags().BoolVar(&listenThreads, "threads", false, "also emit thread_reply events for threads the bot has participated in")
+	listenCmd.Flags().BoolVar(&listenThreads, "threads", false, "(no-op since v0.2.1) bot-parent thread replies are emitted by default; kept for backward compatibility")
 	listenCmd.Flags().BoolVar(&listenAllMessages, "all-messages", false, "firehose: emit every message in every channel the bot is in (implies --threads)")
 	rootCmd.AddCommand(listenCmd)
 }

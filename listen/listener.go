@@ -187,7 +187,10 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 				ParentUserID: parentUserID,
 				Files:        convertMessageEventFiles(ev),
 			})
-		case l.threads && isThread && parentUserID == l.botUserID:
+		case isThread && parentUserID == l.botUserID:
+			// Replies in the bot's own threads are emitted by default — they're
+			// the highest-signal slice of channel traffic and the natural place
+			// users reply to bot-authored messages.
 			l.emit(Event{
 				Type:         "thread_reply",
 				Channel:      ev.Channel,

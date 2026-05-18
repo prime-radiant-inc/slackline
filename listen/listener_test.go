@@ -561,7 +561,7 @@ func TestHandleEventsAPI_AllMessagesMode_ChannelMessage(t *testing.T) {
 	}
 }
 
-func TestHandleEventsAPI_DefaultMode_ChannelMessageStillDropped(t *testing.T) {
+func TestHandleEventsAPI_DefaultMode_BotParentThreadReplyEmitted(t *testing.T) {
 	l, buf := newTestListener()
 	// Default — no --threads, no --all-messages.
 
@@ -576,7 +576,51 @@ func TestHandleEventsAPI_DefaultMode_ChannelMessageStillDropped(t *testing.T) {
 		},
 	}))
 
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1", len(lines))
+	}
+	if lines[0]["type"] != "thread_reply" {
+		t.Errorf("type = %v, want thread_reply", lines[0]["type"])
+	}
+	if lines[0]["thread_ts"] != "100.000" {
+		t.Errorf("thread_ts = %v", lines[0]["thread_ts"])
+	}
+	if lines[0]["parent_user_id"] != testBotUserID {
+		t.Errorf("parent_user_id = %v", lines[0]["parent_user_id"])
+	}
+}
+
+func TestHandleEventsAPI_DefaultMode_NonBotParentThreadReplyDropped(t *testing.T) {
+	l, buf := newTestListener()
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:            "U999",
+		Text:            "talking among themselves",
+		Channel:         "C01TESTCHAN",
+		TimeStamp:       "200.001",
+		ThreadTimeStamp: "100.000",
+		Message: &goslack.Msg{
+			ParentUserId: "U_OTHER",
+		},
+	}))
+
 	if buf.Len() != 0 {
-		t.Errorf("default mode should drop all channel messages, got: %s", buf.String())
+		t.Errorf("thread reply with non-bot parent should be dropped in default mode, got: %s", buf.String())
+	}
+}
+
+func TestHandleEventsAPI_DefaultMode_TopLevelChannelMessageDropped(t *testing.T) {
+	l, buf := newTestListener()
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      "U999",
+		Text:      "top-level channel msg",
+		Channel:   "C01TESTCHAN",
+		TimeStamp: "200.001",
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("top-level channel message should be dropped in default mode, got: %s", buf.String())
 	}
 }
