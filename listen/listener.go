@@ -127,7 +127,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return // Self-filter
 		}
 		l.emit(Event{
-			Type:     "mention",
+			Type:     EventTypeMention,
 			Channel:  ev.Channel,
 			User:     ev.User,
 			Text:     ev.Text,
@@ -149,7 +149,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 				return
 			}
 			l.emit(Event{
-				Type:     "dm",
+				Type:     EventTypeDM,
 				Channel:  ev.Channel,
 				User:     ev.User,
 				Text:     ev.Text,
@@ -173,9 +173,9 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		}
 		switch {
 		case l.allMessages:
-			eventType := "channel_message"
+			eventType := EventTypeChannelMessage
 			if isThread {
-				eventType = "thread_reply"
+				eventType = EventTypeThreadReply
 			}
 			l.emit(Event{
 				Type:         eventType,
@@ -192,7 +192,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			// the highest-signal slice of channel traffic and the natural place
 			// users reply to bot-authored messages.
 			l.emit(Event{
-				Type:         "thread_reply",
+				Type:         EventTypeThreadReply,
 				Channel:      ev.Channel,
 				User:         ev.User,
 				Text:         ev.Text,
@@ -208,7 +208,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return // Self-filter
 		}
 		l.emit(Event{
-			Type:    "reaction_added",
+			Type:    EventTypeReactionAdded,
 			Channel: ev.Item.Channel,
 			User:    ev.User,
 			Emoji:   ev.Reaction,
@@ -220,7 +220,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return
 		}
 		l.emit(Event{
-			Type:    "reaction_removed",
+			Type:    EventTypeReactionRemoved,
 			Channel: ev.Item.Channel,
 			User:    ev.User,
 			Emoji:   ev.Reaction,

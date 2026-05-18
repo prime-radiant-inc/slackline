@@ -11,9 +11,14 @@ import (
 )
 
 const (
-	testBotUserID = "UBOT123"
-	testChannelID = "C123"
-	testEventType = "mention"
+	testBotUserID     = "UBOT123"
+	testChannelID     = "C123"
+	testOtherUserID   = "U999"
+	testEventTS       = "100.001"
+	testReplyTS       = "200.001"
+	testThreadTS      = "100.000"
+	testItemTS        = "300.001"
+	testEmojiThumbsup = "thumbsup"
 )
 
 // newTestListener creates a Listener with only the fields needed for
@@ -51,11 +56,11 @@ func parseJSONL(t *testing.T, buf *bytes.Buffer) []map[string]interface{} {
 func TestEmit_ValidJSON(t *testing.T) {
 	l, buf := newTestListener()
 	l.emit(Event{
-		Type:    testEventType,
+		Type:    EventTypeMention,
 		Channel: testChannelID,
 		User:    "U456",
 		Text:    "hello",
-		TS:      "100.001",
+		TS:      testEventTS,
 	})
 
 	lines := parseJSONL(t, buf)
@@ -63,8 +68,8 @@ func TestEmit_ValidJSON(t *testing.T) {
 		t.Fatalf("got %d lines, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != testEventType {
-		t.Errorf("type = %v, want %s", m["type"], testEventType)
+	if m["type"] != EventTypeMention {
+		t.Errorf("type = %v, want %s", m["type"], EventTypeMention)
 	}
 	if m["channel"] != testChannelID {
 		t.Errorf("channel = %v, want %s", m["channel"], testChannelID)
@@ -75,14 +80,14 @@ func TestEmit_ValidJSON(t *testing.T) {
 	if m["text"] != "hello" {
 		t.Errorf("text = %v, want hello", m["text"])
 	}
-	if m["ts"] != "100.001" {
+	if m["ts"] != testEventTS {
 		t.Errorf("ts = %v, want 100.001", m["ts"])
 	}
 }
 
 func TestEmit_TrailingNewline(t *testing.T) {
 	l, buf := newTestListener()
-	l.emit(Event{Type: "mention", Channel: "C1"})
+	l.emit(Event{Type: EventTypeMention, Channel: "C1"})
 
 	raw := buf.String()
 	if !strings.HasSuffix(raw, "\n") {
@@ -97,9 +102,9 @@ func TestEmit_TrailingNewline(t *testing.T) {
 func TestEmit_StripsEmptyThreadTS(t *testing.T) {
 	l, buf := newTestListener()
 	l.emit(Event{
-		Type:     "mention",
+		Type:     EventTypeMention,
 		Channel:  "C1",
-		TS:       "100.001",
+		TS:       testEventTS,
 		ThreadTS: "",
 	})
 
@@ -112,10 +117,10 @@ func TestEmit_StripsEmptyThreadTS(t *testing.T) {
 func TestEmit_StripsSelfReferentialThreadTS(t *testing.T) {
 	l, buf := newTestListener()
 	l.emit(Event{
-		Type:     "mention",
+		Type:     EventTypeMention,
 		Channel:  "C1",
-		TS:       "100.001",
-		ThreadTS: "100.001", // same as TS — top-level message, not a reply
+		TS:       testEventTS,
+		ThreadTS: testEventTS, // same as TS — top-level message, not a reply
 	})
 
 	lines := parseJSONL(t, buf)
@@ -127,14 +132,14 @@ func TestEmit_StripsSelfReferentialThreadTS(t *testing.T) {
 func TestEmit_PreservesThreadTS(t *testing.T) {
 	l, buf := newTestListener()
 	l.emit(Event{
-		Type:     "mention",
+		Type:     EventTypeMention,
 		Channel:  "C1",
 		TS:       "200.002",
-		ThreadTS: "100.001", // different from TS — this is a threaded reply
+		ThreadTS: testEventTS, // different from TS — this is a threaded reply
 	})
 
 	lines := parseJSONL(t, buf)
-	if lines[0]["thread_ts"] != "100.001" {
+	if lines[0]["thread_ts"] != testEventTS {
 		t.Errorf("thread_ts = %v, want 100.001", lines[0]["thread_ts"])
 	}
 }
@@ -154,10 +159,10 @@ func makeEventsAPIEvent(innerData interface{}) slackevents.EventsAPIEvent {
 func TestHandleEventsAPI_Mention(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
-		User:            "U999",
+		User:            testOtherUserID,
 		Text:            "hey bot",
 		Channel:         testChannelID,
-		TimeStamp:       "100.001",
+		TimeStamp:       testEventTS,
 		ThreadTimeStamp: "90.000",
 	}))
 
@@ -166,13 +171,13 @@ func TestHandleEventsAPI_Mention(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != testEventType {
-		t.Errorf("type = %v, want %s", m["type"], testEventType)
+	if m["type"] != EventTypeMention {
+		t.Errorf("type = %v, want %s", m["type"], EventTypeMention)
 	}
 	if m["channel"] != testChannelID {
 		t.Errorf("channel = %v, want %s", m["channel"], testChannelID)
 	}
-	if m["user"] != "U999" {
+	if m["user"] != testOtherUserID {
 		t.Errorf("user = %v, want U999", m["user"])
 	}
 	if m["text"] != "hey bot" {
@@ -199,20 +204,20 @@ func TestHandleEventsAPI_MentionSelfFiltered(t *testing.T) {
 func TestHandleEventsAPI_DM(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "hello in DM",
-		Channel:   "D01TESTDM00", // DM channels start with D
-		TimeStamp: "200.001",
+		Channel:   fixtureDMID, // DM channels start with D
+		TimeStamp: testReplyTS,
 	}))
 
 	lines := parseJSONL(t, buf)
 	if len(lines) != 1 {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
-	if lines[0]["type"] != "dm" {
+	if lines[0]["type"] != EventTypeDM {
 		t.Errorf("type = %v, want dm", lines[0]["type"])
 	}
-	if lines[0]["channel"] != "D01TESTDM00" {
+	if lines[0]["channel"] != fixtureDMID {
 		t.Errorf("channel = %v", lines[0]["channel"])
 	}
 }
@@ -222,7 +227,7 @@ func TestHandleEventsAPI_DMSelfFiltered(t *testing.T) {
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
 		User:    testBotUserID,
 		Text:    "my own DM",
-		Channel: "D01TESTDM00",
+		Channel: fixtureDMID,
 	}))
 
 	if buf.Len() != 0 {
@@ -234,9 +239,9 @@ func TestHandleEventsAPI_DMNonDMChannelIgnored(t *testing.T) {
 	l, buf := newTestListener()
 	// Channel messages (starting with C) should be ignored by the DM handler
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:    "U999",
+		User:    testOtherUserID,
 		Text:    "channel message, not a DM",
-		Channel: "C01TESTCHAN",
+		Channel: fixtureChannelID,
 	}))
 
 	if buf.Len() != 0 {
@@ -247,9 +252,9 @@ func TestHandleEventsAPI_DMNonDMChannelIgnored(t *testing.T) {
 func TestHandleEventsAPI_DMSubtypeIgnored(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:    "U999",
+		User:    testOtherUserID,
 		Text:    "edited",
-		Channel: "D01TESTDM00",
+		Channel: fixtureDMID,
 		SubType: "message_changed",
 	}))
 
@@ -261,11 +266,11 @@ func TestHandleEventsAPI_DMSubtypeIgnored(t *testing.T) {
 func TestHandleEventsAPI_Reaction(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionAddedEvent{
-		User:     "U999",
-		Reaction: "eyes",
+		User:     testOtherUserID,
+		Reaction: fixtureEmojiEyes,
 		Item: slackevents.Item{
 			Channel:   testChannelID,
-			Timestamp: "300.001",
+			Timestamp: testItemTS,
 		},
 	}))
 
@@ -274,13 +279,13 @@ func TestHandleEventsAPI_Reaction(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != "reaction_added" {
+	if m["type"] != EventTypeReactionAdded {
 		t.Errorf("type = %v, want reaction_added", m["type"])
 	}
-	if m["emoji"] != "eyes" {
+	if m["emoji"] != fixtureEmojiEyes {
 		t.Errorf("emoji = %v, want eyes", m["emoji"])
 	}
-	if m["item_ts"] != "300.001" {
+	if m["item_ts"] != testItemTS {
 		t.Errorf("item_ts = %v, want 300.001", m["item_ts"])
 	}
 	if m["channel"] != testChannelID {
@@ -292,10 +297,10 @@ func TestHandleEventsAPI_ReactionSelfFiltered(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionAddedEvent{
 		User:     testBotUserID,
-		Reaction: "thumbsup",
+		Reaction: testEmojiThumbsup,
 		Item: slackevents.Item{
 			Channel:   testChannelID,
-			Timestamp: "300.001",
+			Timestamp: testItemTS,
 		},
 	}))
 
@@ -307,11 +312,11 @@ func TestHandleEventsAPI_ReactionSelfFiltered(t *testing.T) {
 func TestHandleEventsAPI_ReactionRemoved(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionRemovedEvent{
-		User:     "U999",
-		Reaction: "thumbsup",
+		User:     testOtherUserID,
+		Reaction: testEmojiThumbsup,
 		Item: slackevents.Item{
 			Channel:   testChannelID,
-			Timestamp: "300.001",
+			Timestamp: testItemTS,
 		},
 	}))
 
@@ -320,13 +325,13 @@ func TestHandleEventsAPI_ReactionRemoved(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != "reaction_removed" {
+	if m["type"] != EventTypeReactionRemoved {
 		t.Errorf("type = %v, want reaction_removed", m["type"])
 	}
-	if m["emoji"] != "thumbsup" {
+	if m["emoji"] != testEmojiThumbsup {
 		t.Errorf("emoji = %v, want thumbsup", m["emoji"])
 	}
-	if m["item_ts"] != "300.001" {
+	if m["item_ts"] != testItemTS {
 		t.Errorf("item_ts = %v", m["item_ts"])
 	}
 }
@@ -335,10 +340,10 @@ func TestHandleEventsAPI_ReactionRemovedSelfFiltered(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionRemovedEvent{
 		User:     testBotUserID,
-		Reaction: "thumbsup",
+		Reaction: testEmojiThumbsup,
 		Item: slackevents.Item{
 			Channel:   testChannelID,
-			Timestamp: "300.001",
+			Timestamp: testItemTS,
 		},
 	}))
 
@@ -360,7 +365,7 @@ func TestHandleEventsAPI_UnknownInnerEventIgnored(t *testing.T) {
 func TestHandleEventsAPI_EmptyChannelMessageIgnored(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:    "U999",
+		User:    testOtherUserID,
 		Text:    "no channel",
 		Channel: "", // empty channel
 	}))
@@ -390,10 +395,10 @@ func TestHandleEventsAPI_IncludeBotSelf_Reaction(t *testing.T) {
 	l.includeBotSelf = true
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.ReactionAddedEvent{
 		User:     testBotUserID,
-		Reaction: "thumbsup",
+		Reaction: testEmojiThumbsup,
 		Item: slackevents.Item{
 			Channel:   testChannelID,
-			Timestamp: "300.001",
+			Timestamp: testItemTS,
 		},
 	}))
 	if buf.Len() == 0 {
@@ -404,10 +409,10 @@ func TestHandleEventsAPI_IncludeBotSelf_Reaction(t *testing.T) {
 func TestHandleEventsAPI_DM_WithFiles(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "see this",
-		Channel:   "D01TESTDM00",
-		TimeStamp: "200.001",
+		Channel:   fixtureDMID,
+		TimeStamp: testReplyTS,
 		// Files live on MessageEvent.Message (*goslack.Msg), not on MessageEvent directly.
 		Message: &goslack.Msg{
 			Files: []goslack.File{
@@ -445,10 +450,10 @@ func TestHandleEventsAPI_DM_WithFiles(t *testing.T) {
 func TestHandleEventsAPI_Mention_NoFilesOmitted(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "look at this",
 		Channel:   testChannelID,
-		TimeStamp: "100.001",
+		TimeStamp: testEventTS,
 	}))
 
 	lines := parseJSONL(t, buf)
@@ -463,10 +468,10 @@ func TestHandleEventsAPI_Mention_NoFilesOmitted(t *testing.T) {
 func TestHandleEventsAPI_DM_NoFilesOmitsArray(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "no files",
-		Channel:   "D01TESTDM00",
-		TimeStamp: "200.001",
+		Channel:   fixtureDMID,
+		TimeStamp: testReplyTS,
 	}))
 
 	lines := parseJSONL(t, buf)
@@ -480,11 +485,11 @@ func TestHandleEventsAPI_ThreadsMode_BotParentReply(t *testing.T) {
 	l.threads = true
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:            "U999",
+		User:            testOtherUserID,
 		Text:            "thanks bot",
-		Channel:         "C01TESTCHAN",
-		TimeStamp:       "200.001",
-		ThreadTimeStamp: "100.000",
+		Channel:         fixtureChannelID,
+		TimeStamp:       testReplyTS,
+		ThreadTimeStamp: testThreadTS,
 		Message: &goslack.Msg{
 			ParentUserId: testBotUserID,
 		},
@@ -494,10 +499,10 @@ func TestHandleEventsAPI_ThreadsMode_BotParentReply(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
-	if lines[0]["type"] != "thread_reply" {
+	if lines[0]["type"] != EventTypeThreadReply {
 		t.Errorf("type = %v, want thread_reply", lines[0]["type"])
 	}
-	if lines[0]["thread_ts"] != "100.000" {
+	if lines[0]["thread_ts"] != testThreadTS {
 		t.Errorf("thread_ts = %v", lines[0]["thread_ts"])
 	}
 	if lines[0]["parent_user_id"] != testBotUserID {
@@ -510,11 +515,11 @@ func TestHandleEventsAPI_ThreadsMode_NotBotParentDropped(t *testing.T) {
 	l.threads = true
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:            "U999",
+		User:            testOtherUserID,
 		Text:            "talking among themselves",
-		Channel:         "C01TESTCHAN",
-		TimeStamp:       "200.001",
-		ThreadTimeStamp: "100.000",
+		Channel:         fixtureChannelID,
+		TimeStamp:       testReplyTS,
+		ThreadTimeStamp: testThreadTS,
 		Message: &goslack.Msg{
 			ParentUserId: "U_OTHER",
 		},
@@ -530,10 +535,10 @@ func TestHandleEventsAPI_ThreadsMode_NonThreadDropped(t *testing.T) {
 	l.threads = true
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "top-level channel msg",
-		Channel:   "C01TESTCHAN",
-		TimeStamp: "200.001",
+		Channel:   fixtureChannelID,
+		TimeStamp: testReplyTS,
 	}))
 
 	if buf.Len() != 0 {
@@ -546,17 +551,17 @@ func TestHandleEventsAPI_AllMessagesMode_ChannelMessage(t *testing.T) {
 	l.allMessages = true
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "hi everyone",
-		Channel:   "C01TESTCHAN",
-		TimeStamp: "200.001",
+		Channel:   fixtureChannelID,
+		TimeStamp: testReplyTS,
 	}))
 
 	lines := parseJSONL(t, buf)
 	if len(lines) != 1 {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
-	if lines[0]["type"] != "channel_message" {
+	if lines[0]["type"] != EventTypeChannelMessage {
 		t.Errorf("type = %v, want channel_message", lines[0]["type"])
 	}
 }
@@ -566,11 +571,11 @@ func TestHandleEventsAPI_DefaultMode_BotParentThreadReplyEmitted(t *testing.T) {
 	// Default — no --threads, no --all-messages.
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:            "U999",
+		User:            testOtherUserID,
 		Text:            "thanks bot",
-		Channel:         "C01TESTCHAN",
-		TimeStamp:       "200.001",
-		ThreadTimeStamp: "100.000",
+		Channel:         fixtureChannelID,
+		TimeStamp:       testReplyTS,
+		ThreadTimeStamp: testThreadTS,
 		Message: &goslack.Msg{
 			ParentUserId: testBotUserID,
 		},
@@ -580,10 +585,10 @@ func TestHandleEventsAPI_DefaultMode_BotParentThreadReplyEmitted(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
-	if lines[0]["type"] != "thread_reply" {
+	if lines[0]["type"] != EventTypeThreadReply {
 		t.Errorf("type = %v, want thread_reply", lines[0]["type"])
 	}
-	if lines[0]["thread_ts"] != "100.000" {
+	if lines[0]["thread_ts"] != testThreadTS {
 		t.Errorf("thread_ts = %v", lines[0]["thread_ts"])
 	}
 	if lines[0]["parent_user_id"] != testBotUserID {
@@ -595,11 +600,11 @@ func TestHandleEventsAPI_DefaultMode_NonBotParentThreadReplyDropped(t *testing.T
 	l, buf := newTestListener()
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:            "U999",
+		User:            testOtherUserID,
 		Text:            "talking among themselves",
-		Channel:         "C01TESTCHAN",
-		TimeStamp:       "200.001",
-		ThreadTimeStamp: "100.000",
+		Channel:         fixtureChannelID,
+		TimeStamp:       testReplyTS,
+		ThreadTimeStamp: testThreadTS,
 		Message: &goslack.Msg{
 			ParentUserId: "U_OTHER",
 		},
@@ -614,10 +619,10 @@ func TestHandleEventsAPI_DefaultMode_TopLevelChannelMessageDropped(t *testing.T)
 	l, buf := newTestListener()
 
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
-		User:      "U999",
+		User:      testOtherUserID,
 		Text:      "top-level channel msg",
-		Channel:   "C01TESTCHAN",
-		TimeStamp: "200.001",
+		Channel:   fixtureChannelID,
+		TimeStamp: testReplyTS,
 	}))
 
 	if buf.Len() != 0 {

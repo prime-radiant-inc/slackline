@@ -5,11 +5,19 @@ import (
 	"testing"
 )
 
+const (
+	fixtureChannelID = "C01TESTCHAN"
+	fixtureDMID      = "D01TESTDM00"
+	fixtureMessageTS = "1769756026.624319"
+	fixtureEmojiEyes = "eyes"
+	fixtureUserID    = "U0123"
+)
+
 func TestMentionEvent_JSON(t *testing.T) {
 	e := Event{
-		Type: "mention", Channel: "C01TESTCHAN", User: "U0123",
-		Text: "hey @test-bot check the logs", TS: "1769756026.624319",
-		ThreadTS: "1769756026.624319",
+		Type: EventTypeMention, Channel: fixtureChannelID, User: fixtureUserID,
+		Text: "hey @test-bot check the logs", TS: fixtureMessageTS,
+		ThreadTS: fixtureMessageTS,
 	}
 	data, err := json.Marshal(e)
 	if err != nil {
@@ -19,10 +27,10 @@ func TestMentionEvent_JSON(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if got["type"] != "mention" {
-		t.Errorf("type = %v, want mention", got["type"])
+	if got["type"] != EventTypeMention {
+		t.Errorf("type = %v, want %s", got["type"], EventTypeMention)
 	}
-	if got["channel"] != "C01TESTCHAN" {
+	if got["channel"] != fixtureChannelID {
 		t.Errorf("channel = %v", got["channel"])
 	}
 	if got["text"] != "hey @test-bot check the logs" {
@@ -31,14 +39,14 @@ func TestMentionEvent_JSON(t *testing.T) {
 }
 
 func TestDMEvent_JSON(t *testing.T) {
-	e := Event{Type: "dm", Channel: "D01TESTDM00", User: "U0456", Text: "can you review this PR?", TS: "1769756030.111111"}
+	e := Event{Type: EventTypeDM, Channel: fixtureDMID, User: "U0456", Text: "can you review this PR?", TS: "1769756030.111111"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if got["type"] != "dm" {
-		t.Errorf("type = %v, want dm", got["type"])
+	if got["type"] != EventTypeDM {
+		t.Errorf("type = %v, want %s", got["type"], EventTypeDM)
 	}
 	if _, ok := got["thread_ts"]; ok {
 		t.Error("thread_ts should be omitted when empty")
@@ -46,19 +54,19 @@ func TestDMEvent_JSON(t *testing.T) {
 }
 
 func TestReactionAddedEvent_JSON(t *testing.T) {
-	e := Event{Type: "reaction_added", Channel: "C01TESTCHAN", User: "U0123", Emoji: "eyes", ItemTS: "1769756026.624319"}
+	e := Event{Type: EventTypeReactionAdded, Channel: fixtureChannelID, User: fixtureUserID, Emoji: fixtureEmojiEyes, ItemTS: fixtureMessageTS}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if got["type"] != "reaction_added" {
-		t.Errorf("type = %v, want reaction_added", got["type"])
+	if got["type"] != EventTypeReactionAdded {
+		t.Errorf("type = %v, want %s", got["type"], EventTypeReactionAdded)
 	}
-	if got["emoji"] != "eyes" {
-		t.Errorf("emoji = %v, want eyes", got["emoji"])
+	if got["emoji"] != fixtureEmojiEyes {
+		t.Errorf("emoji = %v, want %s", got["emoji"], fixtureEmojiEyes)
 	}
-	if got["item_ts"] != "1769756026.624319" {
+	if got["item_ts"] != fixtureMessageTS {
 		t.Errorf("item_ts = %v", got["item_ts"])
 	}
 	if _, ok := got["text"]; ok {
@@ -67,19 +75,19 @@ func TestReactionAddedEvent_JSON(t *testing.T) {
 }
 
 func TestReactionRemovedEvent_JSON(t *testing.T) {
-	e := Event{Type: "reaction_removed", Channel: "C01TESTCHAN", User: "U0123", Emoji: "thumbsup", ItemTS: "1769756026.624319"}
+	e := Event{Type: EventTypeReactionRemoved, Channel: fixtureChannelID, User: fixtureUserID, Emoji: "thumbsup", ItemTS: fixtureMessageTS}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if got["type"] != "reaction_removed" {
-		t.Errorf("type = %v, want reaction_removed", got["type"])
+	if got["type"] != EventTypeReactionRemoved {
+		t.Errorf("type = %v, want %s", got["type"], EventTypeReactionRemoved)
 	}
 	if got["emoji"] != "thumbsup" {
 		t.Errorf("emoji = %v, want thumbsup", got["emoji"])
 	}
-	if got["item_ts"] != "1769756026.624319" {
+	if got["item_ts"] != fixtureMessageTS {
 		t.Errorf("item_ts = %v", got["item_ts"])
 	}
 	if _, ok := got["text"]; ok {
@@ -88,7 +96,8 @@ func TestReactionRemovedEvent_JSON(t *testing.T) {
 }
 
 func TestEvent_OmitsEmptyFields(t *testing.T) {
-	e := Event{Type: "mention", Channel: "C123", User: "U123", Text: "hello", TS: "123.456"}
+	const helloText = "hello"
+	e := Event{Type: EventTypeMention, Channel: "C123", User: "U123", Text: helloText, TS: "123.456"}
 	data, _ := json.Marshal(e)
 	var got map[string]interface{}
 	if err := json.Unmarshal(data, &got); err != nil {
