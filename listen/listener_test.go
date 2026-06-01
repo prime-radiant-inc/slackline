@@ -279,8 +279,11 @@ func TestHandleEventsAPI_Reaction(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != EventTypeReactionAdded {
-		t.Errorf("type = %v, want reaction_added", m["type"])
+	if m["type"] != EventTypeReaction {
+		t.Errorf("type = %v, want reaction", m["type"])
+	}
+	if m["action"] != ReactionActionAdded {
+		t.Errorf("action = %v, want added", m["action"])
 	}
 	if m["emoji"] != fixtureEmojiEyes {
 		t.Errorf("emoji = %v, want eyes", m["emoji"])
@@ -325,8 +328,11 @@ func TestHandleEventsAPI_ReactionRemoved(t *testing.T) {
 		t.Fatalf("got %d events, want 1", len(lines))
 	}
 	m := lines[0]
-	if m["type"] != EventTypeReactionRemoved {
-		t.Errorf("type = %v, want reaction_removed", m["type"])
+	if m["type"] != EventTypeReaction {
+		t.Errorf("type = %v, want reaction", m["type"])
+	}
+	if m["action"] != ReactionActionRemoved {
+		t.Errorf("action = %v, want removed", m["action"])
 	}
 	if m["emoji"] != testEmojiThumbsup {
 		t.Errorf("emoji = %v, want thumbsup", m["emoji"])

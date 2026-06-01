@@ -5,17 +5,23 @@ package listen
 // Event "type" field values emitted in JSONL output. These are wire format —
 // downstream agents key on these strings, so changes are user-visible.
 const (
-	EventTypeMention         = "mention"
-	EventTypeDM              = "dm"
-	EventTypeThreadReply     = "thread_reply"
-	EventTypeChannelMessage  = "channel_message"
-	EventTypeReactionAdded   = "reaction_added"
-	EventTypeReactionRemoved = "reaction_removed"
+	EventTypeMention        = "mention"
+	EventTypeDM             = "dm"
+	EventTypeThreadReply    = "thread_reply"
+	EventTypeChannelMessage = "channel_message"
+	EventTypeReaction       = "reaction"
+)
+
+// ReactionAction values for EventTypeReaction events.
+const (
+	ReactionActionAdded   = "added"
+	ReactionActionRemoved = "removed"
 )
 
 // Event represents a Slack event to be serialized as JSONL output.
 type Event struct {
 	Type         string     `json:"type"`
+	Action       string     `json:"action,omitempty"`
 	Channel      string     `json:"channel"`
 	User         string     `json:"user,omitempty"`
 	Text         string     `json:"text,omitempty"`

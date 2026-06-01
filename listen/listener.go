@@ -208,7 +208,8 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return // Self-filter
 		}
 		l.emit(Event{
-			Type:    EventTypeReactionAdded,
+			Type:    EventTypeReaction,
+			Action:  ReactionActionAdded,
 			Channel: ev.Item.Channel,
 			User:    ev.User,
 			Emoji:   ev.Reaction,
@@ -220,7 +221,8 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return
 		}
 		l.emit(Event{
-			Type:    EventTypeReactionRemoved,
+			Type:    EventTypeReaction,
+			Action:  ReactionActionRemoved,
 			Channel: ev.Item.Channel,
 			User:    ev.User,
 			Emoji:   ev.Reaction,

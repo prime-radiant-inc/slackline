@@ -53,45 +53,29 @@ func TestDMEvent_JSON(t *testing.T) {
 	}
 }
 
-func TestReactionAddedEvent_JSON(t *testing.T) {
-	e := Event{Type: EventTypeReactionAdded, Channel: fixtureChannelID, User: fixtureUserID, Emoji: fixtureEmojiEyes, ItemTS: fixtureMessageTS}
-	data, _ := json.Marshal(e)
-	var got map[string]interface{}
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-	if got["type"] != EventTypeReactionAdded {
-		t.Errorf("type = %v, want %s", got["type"], EventTypeReactionAdded)
-	}
-	if got["emoji"] != fixtureEmojiEyes {
-		t.Errorf("emoji = %v, want %s", got["emoji"], fixtureEmojiEyes)
-	}
-	if got["item_ts"] != fixtureMessageTS {
-		t.Errorf("item_ts = %v", got["item_ts"])
-	}
-	if _, ok := got["text"]; ok {
-		t.Error("reaction_added event should not have text")
-	}
-}
-
-func TestReactionRemovedEvent_JSON(t *testing.T) {
-	e := Event{Type: EventTypeReactionRemoved, Channel: fixtureChannelID, User: fixtureUserID, Emoji: "thumbsup", ItemTS: fixtureMessageTS}
-	data, _ := json.Marshal(e)
-	var got map[string]interface{}
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-	if got["type"] != EventTypeReactionRemoved {
-		t.Errorf("type = %v, want %s", got["type"], EventTypeReactionRemoved)
-	}
-	if got["emoji"] != "thumbsup" {
-		t.Errorf("emoji = %v, want thumbsup", got["emoji"])
-	}
-	if got["item_ts"] != fixtureMessageTS {
-		t.Errorf("item_ts = %v", got["item_ts"])
-	}
-	if _, ok := got["text"]; ok {
-		t.Error("reaction_removed event should not have text")
+func TestReactionEvent_JSON(t *testing.T) {
+	for _, action := range []string{ReactionActionAdded, ReactionActionRemoved} {
+		e := Event{Type: EventTypeReaction, Action: action, Channel: fixtureChannelID, User: fixtureUserID, Emoji: fixtureEmojiEyes, ItemTS: fixtureMessageTS}
+		data, _ := json.Marshal(e)
+		var got map[string]interface{}
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatalf("Unmarshal: %v", err)
+		}
+		if got["type"] != EventTypeReaction {
+			t.Errorf("type = %v, want %s", got["type"], EventTypeReaction)
+		}
+		if got["action"] != action {
+			t.Errorf("action = %v, want %s", got["action"], action)
+		}
+		if got["emoji"] != fixtureEmojiEyes {
+			t.Errorf("emoji = %v, want %s", got["emoji"], fixtureEmojiEyes)
+		}
+		if got["item_ts"] != fixtureMessageTS {
+			t.Errorf("item_ts = %v", got["item_ts"])
+		}
+		if _, ok := got["text"]; ok {
+			t.Error("reaction event should not have text")
+		}
 	}
 }
 
