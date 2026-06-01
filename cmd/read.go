@@ -161,26 +161,20 @@ func fetchHistory(api slackpkg.SlackAPI, channelID, oldest string, limit int) ([
 	return all, nil
 }
 
-// fetchReplies retrieves thread replies with pagination, returning up to
-// limit messages in chronological order. Slack returns replies in
-// chronological order already.
+// fetchReplies retrieves thread replies, returning up to limit messages in
+// chronological order, counted from the newest. Slack returns replies
+// oldest-first and paginates forward, so the newest replies live on the last
+// page: we must follow the cursor to the end of the thread before truncating,
+// otherwise the true tail is silently dropped (PRI-1879).
 func fetchReplies(api slackpkg.SlackAPI, channelID, threadTS, oldest string, limit int) ([]goslack.Message, error) {
 	var all []goslack.Message
 	cursor := ""
 	for {
-		remaining := limit - len(all)
-		if remaining <= 0 {
-			break
-		}
-		pageSize := remaining
-		if pageSize > 100 {
-			pageSize = 100
-		}
 		msgs, hasMore, nextCursor, err := api.GetConversationReplies(&goslack.GetConversationRepliesParameters{
 			ChannelID: channelID,
 			Timestamp: threadTS,
 			Cursor:    cursor,
-			Limit:     pageSize,
+			Limit:     100,
 			Oldest:    oldest,
 		})
 		if err != nil {
@@ -192,8 +186,9 @@ func fetchReplies(api slackpkg.SlackAPI, channelID, threadTS, oldest string, lim
 		}
 		cursor = nextCursor
 	}
+	// Keep the newest `limit` messages (pagination collects the whole thread).
 	if len(all) > limit {
-		all = all[:limit]
+		all = all[len(all)-limit:]
 	}
 	return all, nil
 }

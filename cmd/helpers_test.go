@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strconv"
 	"testing"
 
 	slackpkg "github.com/prime-radiant-inc/slackline/slack"
@@ -43,6 +44,9 @@ type fakeSlackAPI struct {
 	repliesHasMore  bool
 	repliesCursor   string
 	repliesErr      error
+	// repliesPages, when set, makes GetConversationReplies serve one page per
+	// call, advancing by the cursor it returns. Overrides repliesMessages.
+	repliesPages [][]goslack.Message
 	// capturedRepliesParams records the last GetConversationReplies call.
 	capturedRepliesParams *goslack.GetConversationRepliesParameters
 
@@ -82,6 +86,19 @@ func (f *fakeSlackAPI) GetConversationReplies(params *goslack.GetConversationRep
 	f.capturedRepliesParams = params
 	if f.repliesErr != nil {
 		return nil, false, "", f.repliesErr
+	}
+	if f.repliesPages != nil {
+		idx := 0
+		if params.Cursor != "" {
+			idx, _ = strconv.Atoi(params.Cursor)
+		}
+		page := f.repliesPages[idx]
+		hasMore := idx+1 < len(f.repliesPages)
+		nextCursor := ""
+		if hasMore {
+			nextCursor = strconv.Itoa(idx + 1)
+		}
+		return page, hasMore, nextCursor, nil
 	}
 	return f.repliesMessages, f.repliesHasMore, f.repliesCursor, nil
 }
@@ -363,6 +380,48 @@ func TestFetchReplies_RespectsLimit(t *testing.T) {
 	}
 	if len(msgs) != 2 {
 		t.Fatalf("fetchReplies returned %d messages, want 2", len(msgs))
+	}
+	// --limit counts from the newest: the 2 newest replies, not the oldest 2.
+	if msgs[0].Timestamp != "1.2" {
+		t.Errorf("msgs[0].Timestamp = %q, want %q", msgs[0].Timestamp, "1.2")
+	}
+	if msgs[1].Timestamp != "1.3" {
+		t.Errorf("msgs[1].Timestamp = %q, want %q", msgs[1].Timestamp, "1.3")
+	}
+}
+
+// TestFetchReplies_PaginatesToTail guards PRI-1879: conversations.replies
+// returns messages oldest-first and paginates forward, so the newest replies
+// live on the last page. fetchReplies must follow the cursor to the end and
+// return the true tail, not stop after the first page.
+func TestFetchReplies_PaginatesToTail(t *testing.T) {
+	api := &fakeSlackAPI{
+		repliesPages: [][]goslack.Message{
+			{
+				makeMessage(ts1, "U1", "parent"),
+				makeMessage("1.1", "U2", "reply one"),
+			},
+			{
+				makeMessage("1.2", "U3", "reply two"),
+				makeMessage("1.3", "U4", "newest reply"),
+			},
+		},
+	}
+
+	// limit (3) is smaller than the thread total (4) and the newest reply is on
+	// the last page: the early-stop bug would truncate after page 1 and miss it.
+	msgs, err := fetchReplies(api, fixtureChannelID, ts1, "", 3)
+	if err != nil {
+		t.Fatalf("fetchReplies returned error: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("fetchReplies returned %d messages, want 3", len(msgs))
+	}
+	if got := msgs[len(msgs)-1].Timestamp; got != "1.3" {
+		t.Errorf("newest message ts = %q, want %q", got, "1.3")
+	}
+	if got := msgs[0].Timestamp; got != "1.1" {
+		t.Errorf("oldest returned ts = %q, want %q (newest 3)", got, "1.1")
 	}
 }
 
