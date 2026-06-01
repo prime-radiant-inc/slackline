@@ -1,6 +1,6 @@
 # Provisioning a new slackline bot
 
-Use this skill when you need to deploy a new Slackline bot in a Slack workspace. The flow assumes:
+Use this recipe when you need to deploy a new Slackline bot in a Slack workspace. The flow assumes:
 
 - `slackline` binary is installed and on PATH.
 - A workspace admin's browser session is established on this host (one-time per machine — Chrome/Playwright/etc. is signed into Slack as an admin).

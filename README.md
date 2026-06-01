@@ -109,7 +109,7 @@ Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrup
 
 | Flag | Effect |
 |------|--------|
-| (none) | `mention`, `dm`, `reaction` only |
+| (none) | `mention`, `dm`, `reaction`, and bot-parent `thread_reply` |
 | `--type <list>` | emit only the named types (`mention`, `dm`, `thread_reply`, `channel_message`, `reaction`); emit-time filter, does not widen subscription; `channel_message` requires `--all-messages` |
 | `--threads` | also emits `thread_reply` for threads the bot has participated in |
 | `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
