@@ -24,7 +24,7 @@ var (
 var askCmd = &cobra.Command{
 	Use:   "ask",
 	Short: "Send a message and wait for a reply",
-	Long:  "Sends a message to a channel and polls the thread for replies from other users. Exits 0 when a reply is received, exits 1 on timeout.",
+	Long:  "Sends a message to a channel and polls the thread for replies from other users. Exits 0 when a reply is received, exits 5 on timeout (1/2/3 for API/auth/config errors).",
 	RunE:  runAsk,
 }
 
@@ -67,7 +67,6 @@ func runAsk(cmd *cobra.Command, args []string) error {
 
 	api := slackpkg.NewClient(cfg.Bot.BotToken)
 
-	// Get bot user ID for self-filtering.
 	authResp, err := api.AuthTest()
 	if err != nil {
 		if isAuthError(err) {
@@ -75,7 +74,6 @@ func runAsk(cmd *cobra.Command, args []string) error {
 		}
 		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: err.Error()}
 	}
-	botUserID := authResp.UserID
 
 	resolver := slackpkg.NewResolver(api)
 	channelID, err := resolver.Resolve(askChannel)
@@ -86,6 +84,13 @@ func runAsk(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "channel_resolve_error", Detail: err.Error()}
 	}
 
+	return runAskWithAPI(api, channelID, authResp.UserID, text, askTimeout, askPoll, time.Now, time.Sleep, cmd.OutOrStdout())
+}
+
+// runAskWithAPI posts text to channelID, then polls the thread until a reply
+// from another user arrives (exit 0) or the deadline passes (Timeout). now/sleep
+// are injected for deterministic tests; production passes time.Now/time.Sleep.
+func runAskWithAPI(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, now func() time.Time, sleep func(time.Duration), out io.Writer) error {
 	_, ts, err := api.PostMessage(channelID, goslack.MsgOptionText(text, false))
 	if err != nil {
 		if isAuthError(err) {
@@ -94,14 +99,13 @@ func runAsk(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "send_failed", Detail: err.Error()}
 	}
 
-	// Poll for replies.
-	deadline := time.Now().Add(time.Duration(askTimeout) * time.Second)
-	pollInterval := time.Duration(askPoll) * time.Second
+	deadline := now().Add(time.Duration(timeoutSec) * time.Second)
+	pollInterval := time.Duration(pollSec) * time.Second
 
 	for {
-		time.Sleep(pollInterval)
-		if time.Now().After(deadline) {
-			return &errs.SlackError{Code: errs.SlackAPI, Err: "timeout", Detail: fmt.Sprintf("No reply received within %d seconds.", askTimeout)}
+		sleep(pollInterval)
+		if now().After(deadline) {
+			return &errs.SlackError{Code: errs.Timeout, Err: "timeout", Detail: fmt.Sprintf("No reply received within %d seconds.", timeoutSec)}
 		}
 
 		msgs, _, _, err := api.GetConversationReplies(&goslack.GetConversationRepliesParameters{
@@ -130,7 +134,7 @@ func runAsk(cmd *cobra.Command, args []string) error {
 
 		if len(replies) > 0 {
 			for _, m := range replies {
-				writeMessage(os.Stdout, m)
+				writeMessage(out, m)
 			}
 			return nil
 		}
