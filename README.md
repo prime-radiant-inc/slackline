@@ -81,7 +81,7 @@ With `--attach`:
 slackline read --channel <channel> [--limit 20] [--thread <ts>] [--since <RFC3339>]
 ```
 
-Returns JSONL in **chronological order** (oldest first), up to `--limit` messages.
+Returns the most recent `--limit` messages as JSONL in **chronological order** (oldest first). For both channel and thread reads, `--limit` counts back from the newest message, so the latest reply is always included.
 
 ```json
 {"ts":"1234567890.123456","user":"U...","text":"hello"}
