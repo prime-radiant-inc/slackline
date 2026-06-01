@@ -22,16 +22,17 @@ A comma-separated allowlist filter applied at the single `emit()` choke point in
 - Unknown type → usage error (exit 4) naming the valid set. Kills silent typos (`--type mentions`).
 - `channel_message` is only produced under the firehose, so `--type channel_message` **without** `--all-messages` → usage error: "channel_message events require --all-messages". (Explicit over magic — chosen over auto-enabling.)
 - Implemented as `ListenerOptions.Types` (a `map[string]bool`, empty = emit all). `emit()` drops events whose `Type` isn't in the set. Type validation + the `channel_message`/`--all-messages` check live in `cmd/listen.go` before constructing the listener.
+- **`--type` is an emit-time filter, not a subscription widener.** `thread_reply` is emitted for bot-parent threads by default and for all threads only under `--all-messages` (`listener.go:177,190`). So `--type thread_reply` honors whichever subscription is active — it does NOT widen coverage to all threads. Document this in the flag help and skill so it isn't a silent under-delivery surprise. (`channel_message` is the one type with no default subscription, hence its explicit `--all-messages` guard above.)
 
 ### 2. Unified `reaction` event
 
 Collapse `reaction_added` / `reaction_removed` into one event type `reaction` with an `action` field (`"added"` | `"removed"`), mirroring the `react` command's existing `action` output.
 
 - `events.go`: replace `EventTypeReactionAdded`/`EventTypeReactionRemoved` with `EventTypeReaction = "reaction"`; add `Action string \`json:"action,omitempty"\`` to `Event`.
-- `listener.go`: both reaction branches emit `Type: EventTypeReaction` with `Action: "added"`/`"removed"`.
-- The Slack-side manifest still subscribes to both `reaction_added` and `reaction_removed` Slack events (unchanged — `provision/manifest_test.go` golden is unaffected; those are Slack event names, not slackline output types).
+- `listener.go`: both reaction branches (`:211,:223`) emit `Type: EventTypeReaction` with `Action: "added"`/`"removed"`.
+- The Slack-side manifest still subscribes to both `reaction_added` and `reaction_removed` Slack events (unchanged — `provision/manifest_test.go` golden is unaffected; those are Slack event names, distinct constants in `provision/manifest.go`, not slackline output types).
 
-Breaking change to `listen` output schema.
+Breaking change to `listen` output schema. **Note this reverses a prior deliberate split:** v0.2.x renamed `reaction` → `reaction_added` and added `reaction_removed` (see README Migration). The `action` field preserves the add/remove distinction that split was for, so this is a net simplification — but the README Migration log and reaction event-reference sections must be reconciled, not just appended to (see Versioning & docs).
 
 ### 3. `ask` timeout exit code
 
@@ -57,19 +58,35 @@ Breaking change to the exit code for timeout (was 1).
   - `skills/using-slack/copy-buttons.md` — selector reference (moved from the provision skill's companion).
   - Delete `skills/slackline-provision-bot/`.
 - Rewrite `using-slack/SKILL.md` against the cleaner UX: `--limit 1` for newest, `listen --type` instead of `jq .type` loops, `ask` exit-code branching, unified `reaction` event. Shorten the description to triggers only.
-- Repoint references: README "Provisioning a new bot" section, and the `using-slack-at-prime-radiant` skill (primeradiant-ops) which references the provision skill by name.
+- Repoint **every** live reference to the deleted skill. Full set (verified via grep — `docs/specs/*` and `docs/plans/*` are historical and left as-is):
+  - `README.md:200,228` — "Provisioning a new bot" section.
+  - `CLAUDE.md:55` and `AGENTS.md:55` — both describe the recipe as living in `skills/slackline-provision-bot/SKILL.md`; update the path to `skills/using-slack/provisioning.md`.
+  - `skills/using-slack/SKILL.md:14` — its own prerequisites pointer ("use the `slackline-provision-bot` skill"). The target is now a **section/file of this skill**, not an invocable skill name — reword to "see the Provisioning section below" / `provisioning.md`.
+  - `.claude-plugin/marketplace.json:12` — plugin description says "Bundles the using-slack and slackline-provision-bot skills"; drop the dead name.
+  - `cc-plugin-primeradiant-ops` → `skills/using-slack-at-prime-radiant/SKILL.md:43` — cross-repo, ships/versions independently. Reword to point at the using-slack provisioning section. Coordinate: there's a window where the slackline plugin no longer has `slackline-provision-bot` but a not-yet-updated downstream skill still names it — land both before announcing.
 
 ## Testing
 
-- `cmd/listen_test.go` (or helpers): `--type` parsing/validation (valid set, unknown→error, `channel_message` without `--all-messages`→error). Existing listener tests assert reaction output → update to the unified `reaction`/`action` shape.
-- `listen/listener_test.go`: `emit()` filters by `Types`; reaction branches emit `reaction` + `action`.
-- `cmd/ask` test: timeout path returns exit code 5 (Timeout). 
-- `errs` test: `Timeout` maps to 5.
+- `cmd/listen_test.go` (or helpers): `--type` parsing/validation (valid set, unknown→error exit 4, `channel_message` without `--all-messages`→error), and that the emit filter drops non-matching types.
+- **Removing `EventTypeReactionAdded`/`EventTypeReactionRemoved` breaks compilation of two existing test files — both must be updated or the `listen` package test build fails (not just an assertion):**
+  - `listen/events_test.go:57,63,64,78,84,85` — `TestReactionAddedEvent_JSON` / `TestReactionRemovedEvent_JSON` → fold into a single `reaction`+`action` test.
+  - `listen/listener_test.go:282,328` — reaction-output assertions → update to `reaction`/`action`.
+- `listen/listener_test.go`: `emit()` filters by `Types` (add coverage).
+- `cmd/ask` test: timeout path returns exit code 5 (Timeout).
+- `errs` test: `Timeout` maps to 5; confirm 5 was previously unused.
 - All via the existing fake-based command tests; no live Slack.
 
 ## Versioning & docs
 
-- `v0.3.0`: CHANGELOG (`Added`: `listen --type`; `Changed`: unified `reaction` event, `ask` timeout exit code), `plugin.json` 0.2.3→0.3.0, README (`listen` flags + event reference + exit-code table), then `make release VERSION=0.3.0`.
+`v0.3.0`, then `make release VERSION=0.3.0`. Specific edits (the reviewers found the generic "update README" was hiding several concrete touch-points):
+
+- **CHANGELOG**: `Added` `listen --type`; `Changed` unified `reaction` event + `ask` timeout exit code.
+- **`plugin.json`** 0.2.3 → 0.3.0. (`marketplace.json` slackline entry has no version field — uses commit SHA — so no bump there, but its description string is edited per §4.)
+- **README event reference** (`:266-276`): collapse the `### reaction_added` and `### reaction_removed` sections into one `### reaction` with the `action` field shown.
+- **README Migration** (`:286-290`): the existing `### reaction → reaction_added` entry is now historically inverted by this change. Add a new entry `### reaction_added / reaction_removed → reaction` (match `"type":"reaction"` + read `action`); reconcile the old entry so the log reads coherently rather than contradicting itself.
+- **README `ask`** (`:100`): "exits 1 on timeout" → exit 5.
+- **README `listen` flags table**: add `--type`.
+- **In-binary help text** (so `--help` matches behavior): `cmd/ask.go:27` `Long` ("exits 1 on timeout") and `cmd/listen.go:28` `Long`/flag help (mention `--type`).
 
 ## Out of scope (YAGNI)
 
