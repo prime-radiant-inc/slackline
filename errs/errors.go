@@ -12,6 +12,7 @@ const (
 	Auth     = 2
 	Config   = 3
 	Usage    = 4
+	Timeout  = 5
 )
 
 // Error code strings used in SlackError.Err. These are wire format — they

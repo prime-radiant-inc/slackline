@@ -72,3 +72,13 @@ func TestAuthError(t *testing.T) {
 		t.Errorf("unexpected detail: %s", se.Detail)
 	}
 }
+
+func TestTimeoutExitCode(t *testing.T) {
+	if Timeout != 5 {
+		t.Errorf("Timeout = %d, want 5", Timeout)
+	}
+	// Guard the rest of the taxonomy so the codes stay stable.
+	if Success != 0 || SlackAPI != 1 || Auth != 2 || Config != 3 || Usage != 4 {
+		t.Error("exit-code taxonomy 0-4 changed unexpectedly")
+	}
+}
