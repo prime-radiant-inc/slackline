@@ -423,6 +423,11 @@ func TestFetchReplies_PaginatesToTail(t *testing.T) {
 	if got := msgs[0].Timestamp; got != "1.1" {
 		t.Errorf("oldest returned ts = %q, want %q (newest 3)", got, "1.1")
 	}
+	// Pages must be requested at full size, not shrunk toward --limit, or
+	// pagination would stop short of the tail again.
+	if got := api.capturedRepliesParams.Limit; got != 100 {
+		t.Errorf("page Limit = %d, want 100", got)
+	}
 }
 
 // --- messageOutput JSONL tests ---
