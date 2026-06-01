@@ -1,6 +1,9 @@
 # Binary
 slackline
 
+# Locally-fetched installer copy (the tracked source is install.sh)
+/install
+
 # Worktrees
 .worktrees/
 worktrees/
