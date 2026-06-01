@@ -635,3 +635,32 @@ func TestHandleEventsAPI_DefaultMode_TopLevelChannelMessageDropped(t *testing.T)
 		t.Errorf("top-level channel message should be dropped in default mode, got: %s", buf.String())
 	}
 }
+
+func TestEmit_TypeFilter(t *testing.T) {
+	buf := &bytes.Buffer{}
+	l := &Listener{
+		botUserID: testBotUserID,
+		out:       buf,
+		status:    &bytes.Buffer{},
+		types:     map[string]bool{EventTypeMention: true},
+	}
+	l.emit(Event{Type: EventTypeMention, Channel: testChannelID})
+	l.emit(Event{Type: EventTypeReaction, Action: "added", Channel: testChannelID})
+
+	lines := parseJSONL(t, buf)
+	if len(lines) != 1 {
+		t.Fatalf("got %d events, want 1 (only mention)", len(lines))
+	}
+	if lines[0]["type"] != EventTypeMention {
+		t.Errorf("emitted type = %v, want mention", lines[0]["type"])
+	}
+}
+
+func TestEmit_NoTypeFilter_EmitsAll(t *testing.T) {
+	l, buf := newTestListener() // types is nil
+	l.emit(Event{Type: EventTypeMention, Channel: testChannelID})
+	l.emit(Event{Type: EventTypeReaction, Action: "removed", Channel: testChannelID})
+	if got := len(parseJSONL(t, buf)); got != 2 {
+		t.Fatalf("got %d events, want 2 (no filter)", got)
+	}
+}

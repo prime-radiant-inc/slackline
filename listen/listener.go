@@ -23,6 +23,7 @@ type Listener struct {
 	includeBotSelf bool
 	threads        bool
 	allMessages    bool
+	types          map[string]bool
 }
 
 // ListenerOptions bundles per-mode flags for NewListener.
@@ -30,6 +31,7 @@ type ListenerOptions struct {
 	IncludeBotSelf bool
 	Threads        bool
 	AllMessages    bool
+	Types          map[string]bool
 }
 
 // NewListener creates a Socket Mode listener.
@@ -47,6 +49,7 @@ func NewListener(botToken, appToken, botUserID string, opts ListenerOptions, out
 		includeBotSelf: opts.IncludeBotSelf,
 		threads:        opts.Threads,
 		allMessages:    opts.AllMessages,
+		types:          opts.Types,
 	}
 }
 
@@ -232,6 +235,9 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 }
 
 func (l *Listener) emit(e Event) {
+	if l.types != nil && !l.types[e.Type] {
+		return
+	}
 	// Strip thread_ts when empty or equals ts (top-level message, not a reply)
 	if e.ThreadTS == "" || e.ThreadTS == e.TS {
 		e.ThreadTS = ""
