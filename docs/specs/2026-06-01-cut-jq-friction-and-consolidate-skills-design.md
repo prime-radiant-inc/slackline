@@ -21,7 +21,7 @@ A comma-separated allowlist filter applied at the single `emit()` choke point in
 - Valid types: `mention`, `dm`, `thread_reply`, `channel_message`, `reaction`.
 - Unknown type → usage error (exit 4) naming the valid set. Kills silent typos (`--type mentions`).
 - `channel_message` is only produced under the firehose, so `--type channel_message` **without** `--all-messages` → usage error: "channel_message events require --all-messages". (Explicit over magic — chosen over auto-enabling.)
-- Implemented as `ListenerOptions.Types` (a `map[string]bool`, empty = emit all). `emit()` drops events whose `Type` isn't in the set. Type validation + the `channel_message`/`--all-messages` check live in `cmd/listen.go` before constructing the listener.
+- Implemented as `ListenerOptions.Types` (a `map[string]bool`, empty = emit all). `emit()` drops events whose `Type` isn't in the set. Type validation + the `channel_message`/`--all-messages` check live in `cmd/listen.go` and **must run before `loadConfig()`/`AuthTest()`** (currently `runListen:33,:46`), not merely "before constructing the listener." `runListen` does a live `auth.test` near the top; if validation lands after it, the usage-error tests can't be exercised without a configured bot + network, breaking the "no live Slack" test claim. Put the `--type` parse/validate first thing in `runListen`.
 - **`--type` is an emit-time filter, not a subscription widener.** `thread_reply` is emitted for bot-parent threads by default and for all threads only under `--all-messages` (`listener.go:177,190`). So `--type thread_reply` honors whichever subscription is active — it does NOT widen coverage to all threads. Document this in the flag help and skill so it isn't a silent under-delivery surprise. (`channel_message` is the one type with no default subscription, hence its explicit `--all-messages` guard above.)
 
 ### 2. Unified `reaction` event
@@ -50,7 +50,9 @@ fi
 
 Breaking change to the exit code for timeout (was 1).
 
-**Testability refactor (required):** unlike `react`/`send`/`download`, `runAsk` (`cmd/ask.go:40`) builds its client internally (`slackpkg.NewClient`, `:68`) and calls real `time.Sleep(pollInterval)` (`:102`) — there is no injection seam and no `cmd/ask_test.go`. To test the timeout→exit-5 path with fakes (no live Slack), extract a `runAskWithAPI(api slackpkg.SlackAPI, …)` seam mirroring `runReactAddWithAPI`, and make the poll wait injectable (e.g. a `sleep func(time.Duration)` or a 0-duration poll in tests) so the timeout fires deterministically without wall-clock delay.
+**Testability refactor (required):** unlike `react`/`send`/`download`, `runAsk` (`cmd/ask.go:40`) builds its client internally (`slackpkg.NewClient`, `:68`), runs `AuthTest` + `resolver.Resolve` itself (`:68,:71,:80`), and calls real `time.Sleep(pollInterval)` (`:102`) — there is no injection seam and no `cmd/ask_test.go`. Extract a `runAskWithAPI(api slackpkg.SlackAPI, …)` seam: move `AuthTest` (for bot user id) and channel resolution into the `RunE` wrapper (react's seam takes an already-resolved channel and does no AuthTest, so this is a looser "mirror" — the wrapper must do more), and pass the resolved channel + `api` in.
+
+**The timeout is wall-clock, not poll-derived — get this right or the test hangs.** The loop computes `deadline := now + askTimeout` (`:98`) and breaks on `time.Now().After(deadline)` (`:103`), independent of `pollInterval`. So zeroing the poll sleep alone does NOT fire the timeout — with a positive `askTimeout` and a fake returning no replies you get a busy infinite loop. To test the timeout→exit-5 path deterministically: **inject a `now func() time.Time` clock** (preferred — also lets the reply-before-deadline path be tested), or as a cruder alternative drive `--timeout 0` (deadline already past) *and* inject a no-op poll sleep so iteration 1 times out instantly.
 
 ### 4. Skill restructure
 
@@ -89,11 +91,11 @@ Breaking change to the exit code for timeout (was 1).
 - **README event reference** (`:266-276`): collapse the `### reaction_added` and `### reaction_removed` sections into one `### reaction` with the `action` field shown.
 - **README Migration** (`:286-290`): the existing `### reaction → reaction_added` entry is now historically inverted by this change. Add a new entry `### reaction_added / reaction_removed → reaction` (match `"type":"reaction"` + read `action`); reconcile the old entry so the log reads coherently rather than contradicting itself.
 - **README `ask`** (`:100`): "exits 1 on timeout" → exit 5.
-- **README Exit Codes table** (`:180-188`): add a `| 5 | Timeout (ask received no reply) |` row — this is the canonical exit-code contract and currently stops at 4.
+- **Exit-code tables — BOTH** need a row 5: the **README Exit Codes table** (`:180-188`) and the **`using-slack/SKILL.md` exit-code table** (`:88-95`), which both currently stop at 4. Add `| 5 | Timeout (ask received no reply) |` to each. (§4's "fix the row-1 wording" is not enough — the skill table also needs the new row.)
 - **README `listen` flags table** (`~:110`): add `--type`; and the **`(none)` row** (`:112`) names `reaction_added`/`reaction_removed` — update to `reaction`.
 - **README `listen` usage synopsis** (`:105`): `slackline listen [--threads] [--all-messages] [--include-bot-self]` omits `--type`.
 - **In-binary help text** (so `--help` matches behavior): `cmd/ask.go:27` `Long` ("exits 1 on timeout") and `cmd/listen.go:28` `Long`/flag help (mention `--type`).
-- **CHANGELOG/Migration:** match the existing dated-header format (`## [0.3.0] - <date>`, no `[Unreleased]` block — the repo doesn't use one).
+- **CHANGELOG/Migration:** match the existing dated-header format (`## [0.3.0] - <date>`, no `[Unreleased]` block — the repo doesn't use one). Use the actual release date; if that's still 2026-06-01 it collides with the existing `[0.2.3]` header — fine, but make it a deliberate choice rather than an accident.
 
 ## Out of scope (YAGNI)
 
