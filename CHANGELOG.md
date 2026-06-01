@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-06-01
+
+### Added
+- `slackline listen --type <types>` — emit only the named event types (`mention`, `dm`, `thread_reply`, `channel_message`, `reaction`), removing the need to `jq`-filter the stream. Unknown types error; `channel_message` requires `--all-messages`. It's an emit-time filter, not a subscription widener.
+
+### Changed
+- **Breaking:** the two listen reaction events `reaction_added` / `reaction_removed` are unified into a single `reaction` event with an `action` field (`"added"` | `"removed"`).
+- **Breaking:** `slackline ask` now exits `5` on timeout (was `1`), so callers can distinguish a timeout from an API/auth/config error without parsing stderr.
+
 ## [0.2.3] - 2026-06-01
 
 ### Added
