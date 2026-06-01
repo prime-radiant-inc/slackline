@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Added
 - `slackline listen --type <types>` — emit only the named event types (`mention`, `dm`, `thread_reply`, `channel_message`, `reaction`), removing the need to `jq`-filter the stream. Unknown types error; `channel_message` requires `--all-messages`. It's an emit-time filter, not a subscription widener.
+- `slackline listen` now emits a `ready` status to stderr once the Socket Mode session is subscribed and events will flow (distinct from `connected`, which is only the websocket open). Wait for `ready` before expecting events.
+- `slackline listen --help` now documents the event JSON schema (field names per event type, including `reaction`'s `action` and the `file_share` caveat).
 
 ### Changed
 - **Breaking:** the two listen reaction events `reaction_added` / `reaction_removed` are unified into a single `reaction` event with an `action` field (`"added"` | `"removed"`).

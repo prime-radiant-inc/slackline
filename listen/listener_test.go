@@ -8,6 +8,7 @@ import (
 
 	goslack "github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/slack-go/slack/socketmode"
 )
 
 const (
@@ -662,5 +663,14 @@ func TestEmit_NoTypeFilter_EmitsAll(t *testing.T) {
 	l.emit(Event{Type: EventTypeReaction, Action: "removed", Channel: testChannelID})
 	if got := len(parseJSONL(t, buf)); got != 2 {
 		t.Fatalf("got %d events, want 2 (no filter)", got)
+	}
+}
+
+func TestHandleEvent_HelloEmitsReady(t *testing.T) {
+	statusBuf := &bytes.Buffer{}
+	l := &Listener{out: &bytes.Buffer{}, status: statusBuf}
+	l.handleEvent(socketmode.Event{Type: socketmode.EventTypeHello})
+	if !strings.Contains(statusBuf.String(), "ready") {
+		t.Errorf("status = %q, want it to contain \"ready\"", statusBuf.String())
 	}
 }

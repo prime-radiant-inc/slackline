@@ -29,8 +29,23 @@ func init() {
 var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "Listen for real-time Slack events",
-	Long:  "Connect via Socket Mode and stream events as JSONL to stdout. Use --type to emit only specific event types (mention, dm, thread_reply, channel_message, reaction).",
-	RunE:  runListen,
+	Long: `Connect via Socket Mode and stream events as JSONL to stdout, one event per line.
+
+Connection status goes to stderr: connecting/connected (websocket open),
+"ready" (subscribed — events will now flow), reconnecting, disconnected.
+Wait for "ready" before expecting events.
+
+Use --type to emit only specific event types.
+
+Event JSON fields:
+  mention, dm, thread_reply, channel_message:
+    type, channel, user, text, ts, thread_ts (if a reply), parent_user_id, files
+  reaction:
+    type, action ("added"|"removed"), channel, user, emoji, item_ts (the reacted-to message)
+
+Files arrive on message-family events (Slack subtype "file_share"), never on
+"mention" events. Download them with: slackline download --file <id> --out <path>.`,
+	RunE: runListen,
 }
 
 var validListenTypes = map[string]bool{

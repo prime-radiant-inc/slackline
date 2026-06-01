@@ -2,10 +2,21 @@ package cmd
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/prime-radiant-inc/slackline/errs"
 )
+
+func TestListenLongDocumentsEventSchema(t *testing.T) {
+	// `listen --help` must document the event JSON field names (an agent working
+	// from --help alone otherwise has to guess them) and the "ready" status.
+	for _, want := range []string{"item_ts", "action", "channel", "ready", "file_share"} {
+		if !strings.Contains(listenCmd.Long, want) {
+			t.Errorf("listen Long help missing %q", want)
+		}
+	}
+}
 
 func TestParseListenTypes(t *testing.T) {
 	t.Run("empty returns nil (emit all)", func(t *testing.T) {

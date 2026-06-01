@@ -75,7 +75,7 @@ The poll interval (`--poll`, default 10s) means the wait can overshoot `--timeou
 
 ## Listening for events
 
-`slackline listen` streams events as JSONL to **stdout**; connection status (`connected`, `reconnecting`, `disconnected`) goes to **stderr**. Requires both bot and app tokens (Socket Mode).
+`slackline listen` streams events as JSONL to **stdout**; connection status goes to **stderr** (`connected` = websocket open, `ready` = subscribed and events will now flow, `reconnecting`, `disconnected`). Wait for `ready` before expecting events. Requires both bot and app tokens (Socket Mode).
 
 Use `--type` to emit only what you care about — no `jq .type` filter needed:
 

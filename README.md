@@ -115,7 +115,7 @@ Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrup
 | `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
 | `--include-bot-self` | do not filter out events from the bot's own user ID |
 
-See [Event reference](#event-reference) for full event shapes. Status messages (`connected`, `reconnecting`, `disconnected`) go to stderr as plain text.
+See [Event reference](#event-reference) for full event shapes. Status messages go to stderr as plain text: `connected` (websocket open), `ready` (subscribed — events will now flow; wait for this before expecting events), `reconnecting`, `disconnected`.
 
 ### react
 

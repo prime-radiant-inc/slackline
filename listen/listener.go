@@ -120,6 +120,12 @@ func (l *Listener) handleEvent(evt socketmode.Event) {
 
 	case socketmode.EventTypeConnected:
 		_, _ = fmt.Fprintln(l.status, "connected")
+
+	case socketmode.EventTypeHello:
+		// Slack's hello frame: the session is established and events will now
+		// flow. "connected" is only the websocket open — "ready" is the signal
+		// that the listener is actually subscribed and receiving.
+		_, _ = fmt.Fprintln(l.status, "ready")
 	}
 }
 
