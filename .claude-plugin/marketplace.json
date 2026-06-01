@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "slackline",
+  "description": "slackline — give AI agents a Slack identity",
+  "owner": {
+    "name": "slackline contributors"
+  },
+  "plugins": [
+    {
+      "name": "slackline",
+      "source": "./",
+      "description": "Give AI agents a Slack identity. CLI for sending messages, reading channels, listening for events, with reactions and file attachments. Bundles the using-slack and slackline-provision-bot skills.",
+      "category": "communication"
+    }
+  ]
+}
