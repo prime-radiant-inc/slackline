@@ -50,6 +50,8 @@ fi
 
 Breaking change to the exit code for timeout (was 1).
 
+**Testability refactor (required):** unlike `react`/`send`/`download`, `runAsk` (`cmd/ask.go:40`) builds its client internally (`slackpkg.NewClient`, `:68`) and calls real `time.Sleep(pollInterval)` (`:102`) — there is no injection seam and no `cmd/ask_test.go`. To test the timeout→exit-5 path with fakes (no live Slack), extract a `runAskWithAPI(api slackpkg.SlackAPI, …)` seam mirroring `runReactAddWithAPI`, and make the poll wait injectable (e.g. a `sleep func(time.Duration)` or a 0-duration poll in tests) so the timeout fires deterministically without wall-clock delay.
+
 ### 4. Skill restructure
 
 - Fold `skills/slackline-provision-bot/` into `using-slack` as progressive disclosure:
@@ -57,10 +59,12 @@ Breaking change to the exit code for timeout (was 1).
   - `skills/using-slack/provisioning.md` — the admin/browser recipe (moved from the provision skill body).
   - `skills/using-slack/copy-buttons.md` — selector reference (moved from the provision skill's companion).
   - Delete `skills/slackline-provision-bot/`.
-- Rewrite `using-slack/SKILL.md` against the cleaner UX: `--limit 1` for newest, `listen --type` instead of `jq .type` loops, `ask` exit-code branching, unified `reaction` event. Shorten the description to triggers only.
+- Rewrite `using-slack/SKILL.md` against the cleaner UX. This is a body rewrite, not just the `:14` pointer — the current body has several spots that the v0.3.0 behavior makes wrong: the "ask reply vs. timeout" section (exit-1 guidance + stderr-parsing workaround), the `listen` default-types line and event examples naming `reaction_added`/`reaction_removed`, the exit-code table row "1 | Slack API error (includes ask timeout)", and the `jq .type` mention/file loops. Replace with `--limit 1` for newest, `listen --type`, `ask` exit-code branching, unified `reaction` event.
+- **Description must keep provisioning triggers.** The standalone skill triggered on "create / deploy / provision / set up a bot"; `using-slack`'s current description has none of that vocabulary. "Shorten to triggers" must still *merge in* the provisioning triggers, or "provision a new bot" requests match no skill — a discovery regression. (Provisioning detail stays progressively disclosed in `provisioning.md`; only the trigger words go in the description.)
 - Repoint **every** live reference to the deleted skill. Full set (verified via grep — `docs/specs/*` and `docs/plans/*` are historical and left as-is):
   - `README.md:200,228` — "Provisioning a new bot" section.
   - `CLAUDE.md:55` and `AGENTS.md:55` — both describe the recipe as living in `skills/slackline-provision-bot/SKILL.md`; update the path to `skills/using-slack/provisioning.md`.
+  - `CLAUDE.md:35` and `AGENTS.md:35` — the `listen/` event-type list names `reaction_added`, `reaction_removed`; update to the unified `reaction` (with `action`). These are doc-of-record for agents working in the repo.
   - `skills/using-slack/SKILL.md:14` — its own prerequisites pointer ("use the `slackline-provision-bot` skill"). The target is now a **section/file of this skill**, not an invocable skill name — reword to "see the Provisioning section below" / `provisioning.md`.
   - `.claude-plugin/marketplace.json:12` — plugin description says "Bundles the using-slack and slackline-provision-bot skills"; drop the dead name.
   - `cc-plugin-primeradiant-ops` → `skills/using-slack-at-prime-radiant/SKILL.md:43` — cross-repo, ships/versions independently. Reword to point at the using-slack provisioning section. Coordinate: there's a window where the slackline plugin no longer has `slackline-provision-bot` but a not-yet-updated downstream skill still names it — land both before announcing.
@@ -72,9 +76,9 @@ Breaking change to the exit code for timeout (was 1).
   - `listen/events_test.go:57,63,64,78,84,85` — `TestReactionAddedEvent_JSON` / `TestReactionRemovedEvent_JSON` → fold into a single `reaction`+`action` test.
   - `listen/listener_test.go:282,328` — reaction-output assertions → update to `reaction`/`action`.
 - `listen/listener_test.go`: `emit()` filters by `Types` (add coverage).
-- `cmd/ask` test: timeout path returns exit code 5 (Timeout).
+- `cmd/ask` test (NEW file): timeout path returns exit code 5 (Timeout), reply path returns 0. Requires the `runAskWithAPI` + injectable-poll seam from §3 — there is no `cmd/ask_test.go` today and no existing fake seam for `ask`.
 - `errs` test: `Timeout` maps to 5; confirm 5 was previously unused.
-- All via the existing fake-based command tests; no live Slack.
+- No live Slack — but note this needs the new `ask` seam, not just "existing fake-based tests."
 
 ## Versioning & docs
 
@@ -85,8 +89,11 @@ Breaking change to the exit code for timeout (was 1).
 - **README event reference** (`:266-276`): collapse the `### reaction_added` and `### reaction_removed` sections into one `### reaction` with the `action` field shown.
 - **README Migration** (`:286-290`): the existing `### reaction → reaction_added` entry is now historically inverted by this change. Add a new entry `### reaction_added / reaction_removed → reaction` (match `"type":"reaction"` + read `action`); reconcile the old entry so the log reads coherently rather than contradicting itself.
 - **README `ask`** (`:100`): "exits 1 on timeout" → exit 5.
-- **README `listen` flags table**: add `--type`.
+- **README Exit Codes table** (`:180-188`): add a `| 5 | Timeout (ask received no reply) |` row — this is the canonical exit-code contract and currently stops at 4.
+- **README `listen` flags table** (`~:110`): add `--type`; and the **`(none)` row** (`:112`) names `reaction_added`/`reaction_removed` — update to `reaction`.
+- **README `listen` usage synopsis** (`:105`): `slackline listen [--threads] [--all-messages] [--include-bot-self]` omits `--type`.
 - **In-binary help text** (so `--help` matches behavior): `cmd/ask.go:27` `Long` ("exits 1 on timeout") and `cmd/listen.go:28` `Long`/flag help (mention `--type`).
+- **CHANGELOG/Migration:** match the existing dated-header format (`## [0.3.0] - <date>`, no `[Unreleased]` block — the repo doesn't use one).
 
 ## Out of scope (YAGNI)
 
