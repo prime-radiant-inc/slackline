@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Commands
 
@@ -52,7 +52,7 @@ Resolved in `loadConfig()` in `cmd/root.go`. `SLACKLINE_BOT_TOKEN` / `SLACKLINE_
 
 `slackline provision bootstrap` (one-time per machine): seeds `provision.json` from `SLACKLINE_CONFIG_TOKEN` / `SLACKLINE_REFRESH_TOKEN` env vars, or interactively via stdin. Does not contact Slack.
 
-`slackline provision NAME` (per-bot, admin): rotates the config token, calls `apps.manifest.create`, and writes machine-readable JSON to stdout with `app_id`, `install_url`, `oauth_authorize_url`, `oauth_page_url`, `general_page_url`. No interactive prompts. The agentic recipe for driving the browser install + token-collection steps lives in the `using-slack` skill's `provisioning.md` (`.claude-plugin/` + `skills/using-slack/provisioning.md`).
+`slackline provision NAME` (per-bot, admin): rotates the config token, calls `apps.manifest.create`, and writes machine-readable JSON to stdout with `app_id`, `install_url`, `oauth_authorize_url`, `oauth_page_url`, `general_page_url`. No interactive prompts. The agentic recipe for driving the browser install + token-collection steps lives in the `using-slack` skill's `provisioning.md` (`.Codex-plugin/` + `skills/using-slack/provisioning.md`).
 
 `slackline init` (developer/agent): prompts for already-provisioned `xoxb-` and `xapp-` tokens (or reads them from `SLACKLINE_BOT_TOKEN` / `SLACKLINE_APP_TOKEN`), validates via `auth.test`, writes `config.json`. Does not touch `provision.json`.
 

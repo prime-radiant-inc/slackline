@@ -97,19 +97,20 @@ slackline ask --channel <channel> [--message <text>] [--timeout 300] [--poll 10]
 echo "text" | slackline ask --channel <channel>
 ```
 
-Sends a message and polls the thread for replies from other users. Outputs replies as JSONL when received. Exits 0 on reply, **exits 1 on timeout** (no stdout output on timeout — error goes to stderr).
+Sends a message and polls the thread for replies from other users. Outputs replies as JSONL when received. Exits 0 on reply, **exits 5 on timeout** (no stdout output on timeout — error goes to stderr).
 
 ### listen
 
 ```bash
-slackline listen [--threads] [--all-messages] [--include-bot-self]
+slackline listen [--type mention,dm,...] [--threads] [--all-messages] [--include-bot-self]
 ```
 
 Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrupted. Requires both bot token and app token.
 
 | Flag | Effect |
 |------|--------|
-| (none) | `mention`, `dm`, `reaction_added`, `reaction_removed` only |
+| (none) | `mention`, `dm`, `reaction` only |
+| `--type <list>` | emit only the named types (`mention`, `dm`, `thread_reply`, `channel_message`, `reaction`); emit-time filter, does not widen subscription; `channel_message` requires `--all-messages` |
 | `--threads` | also emits `thread_reply` for threads the bot has participated in |
 | `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
 | `--include-bot-self` | do not filter out events from the bot's own user ID |
@@ -186,6 +187,7 @@ SLACKLINE_CONFIG=~/.config/slackline/other-bot.json slackline send --channel '#o
 | 2 | Auth error (invalid/revoked token) |
 | 3 | Config error (missing file, unreadable, no token) |
 | 4 | Usage error (bad flags, missing required input) |
+| 5 | Timeout (`ask` received no reply) |
 
 All errors write to stderr as JSON:
 
@@ -263,16 +265,12 @@ Emitted only with `--all-messages`. Top-level non-thread messages.
 {"type":"channel_message","channel":"C...","user":"U...","text":"hi","ts":"...","thread_ts":"?","parent_user_id":"?","files":[...]}
 ```
 
-### reaction_added
+### reaction
+
+Emitted when a reaction is added or removed. `action` is `added` or `removed`.
 
 ```json
-{"type":"reaction_added","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
-```
-
-### reaction_removed
-
-```json
-{"type":"reaction_removed","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
+{"type":"reaction","action":"added","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
 ```
 
 ### File schema
@@ -285,9 +283,9 @@ Files are present only when the sender attached files to the message. File objec
 
 ## Migration
 
-### reaction → reaction_added
+### reaction_added / reaction_removed → reaction
 
-The `reaction` event type has been renamed to `reaction_added`. A new `reaction_removed` event type has been added. Update any listener code that matches `"type":"reaction"`.
+The split `reaction_added` / `reaction_removed` listen events (introduced in 0.2.0) are unified back into a single `reaction` event carrying an `action` field (`"added"` | `"removed"`). Update listeners that match `"type":"reaction_added"` / `"reaction_removed"` to match `"type":"reaction"` and branch on `action`.
 
 ### slackline create removed
 
