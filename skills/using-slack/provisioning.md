@@ -1,9 +1,4 @@
----
-name: slackline-provision-bot
-description: Use when asked to create, deploy, provision, or set up a new Slackline bot in a Slack workspace. Drives the end-to-end flow with browser automation for the install + token-collection steps that Slack requires through their admin UI.
----
-
-# Provisioning a Slackline Bot
+# Provisioning a new slackline bot
 
 Use this skill when you need to deploy a new Slackline bot in a Slack workspace. The flow assumes:
 

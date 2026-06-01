@@ -199,7 +199,7 @@ To programmatically detect a broken bot token from `auth status` output, grep fo
 
 ## Provisioning a new bot
 
-The `slackline-provision-bot` skill (in `skills/slackline-provision-bot/SKILL.md`) documents the full agentic recipe that drives browser automation for the steps Slack requires through their admin UI. The core CLI flow:
+The `using-slack` skill's provisioning recipe (`skills/using-slack/provisioning.md`) documents the full agentic recipe that drives browser automation for the steps Slack requires through their admin UI. The core CLI flow:
 
 ```bash
 # 1. One-time per machine: seed provision.json.
@@ -227,7 +227,7 @@ slackline init
 slackline auth status
 ```
 
-The `slackline-provision-bot` skill contains the full browser selector reference and automation gotchas.
+`skills/using-slack/copy-buttons.md` contains the full browser selector reference and automation gotchas.
 
 ## Event reference
 

@@ -1,6 +1,6 @@
 ---
 name: using-slack
-description: Use when sending or reading Slack messages, checking channels, watching for bot events (mentions, DMs, reactions, thread replies), adding reactions, or downloading Slack files from the command line via the slackline CLI.
+description: Use when sending, reading, or reacting to Slack messages, watching for bot events (mentions, DMs, reactions, thread replies), downloading Slack files, or provisioning/creating/deploying a new Slack bot — all from the command line via the slackline CLI.
 allowed-tools: Bash(slackline:*)
 ---
 
@@ -11,8 +11,8 @@ allowed-tools: Bash(slackline:*)
 ## Prerequisites
 
 - `slackline` on PATH (`~/.local/bin/slackline`). Install: see the repo README.
-- A configured bot: `slackline auth status` should print `Bot:` and a `(valid)` token. If not, run `slackline init` (needs already-provisioned `xoxb-`/`xapp-` tokens). To create a brand-new bot, use the `slackline-provision-bot` skill.
-- `jq` for parsing JSONL output.
+- A configured bot: `slackline auth status` should print `Bot:` and a `(valid)` token. If not, run `slackline init` (needs already-provisioned `xoxb-`/`xapp-` tokens). To create a brand-new bot, see the Provisioning section below.
+- `jq` only if you want to reshape output — most tasks no longer need it.
 
 ## The membership gotcha (read this first)
 
@@ -29,78 +29,101 @@ The bot can only `read`, `ask`, and `listen` in channels it has **joined**. Othe
 | Reply in a thread | `slackline send --channel '#ops' --thread <ts> --message 'text'` |
 | Attach files | `slackline send --channel '#ops' --attach a.png --attach b.pdf` |
 | Read recent messages | `slackline read --channel '#ops' --limit 10` |
+| Read the single newest message | `slackline read --channel '#ops' --limit 1` |
 | Read since a time | `slackline read --channel '#ops' --since 2026-03-17T00:00:00Z` |
-| Read a thread | `slackline read --channel '#ops' --thread <ts> --limit 20` |
+| Read a thread (newest reply: `--limit 1`) | `slackline read --channel '#ops' --thread <ts> --limit 20` |
 | Ask and wait for a reply | `slackline ask --channel '#ops' --message 'q?' --timeout 120` |
 | React to a message | `slackline react add --channel '#ops' --ts <ts> --emoji white_check_mark` |
-| Remove a reaction | `slackline react remove --channel '#ops' --ts <ts> --emoji white_check_mark` |
-| List the bot's channels | `slackline channels` (`--all` for every visible channel, `--json` for scripting) |
-| Download a file | `slackline download --file <F...> --out path` (`--out -` streams to stdout) |
-| Stream live events | `slackline listen` |
+| List the bot's channels | `slackline channels` (`--all`, `--json`) |
+| Download a file | `slackline download --file <F...> --out path` (`--out -` to stdout) |
+| Stream live events | `slackline listen` (filter with `--type`) |
 
 Run `slackline <command> --help` for every flag.
 
 ## Reading messages
 
-`read` emits JSONL, one message per line, in **chronological order — oldest first, so the newest message is the LAST line.** Get the newest with `tail -n1`:
+`read` emits JSONL, oldest-first. To get just the newest, use `--limit 1` (it returns the most recent N counted from the newest) — no `tail` needed:
 
 ```bash
-slackline read --channel '#ops' --limit 5 | tail -n1
+slackline read --channel '#ops' --limit 1
 ```
 
-- `--limit N` returns the most recent N messages (counted back from the newest), still printed oldest→newest. This holds for both channel and thread reads, so the latest reply is always included.
-- A thread read **includes the parent message**, and the parent counts toward `--limit`. To confirm a line is an actual reply, check that its `ts` differs from the thread parent `ts`.
-- The `user` field is a Slack user **ID** (`U...`), not a display name — slackline does not resolve names.
+- This holds for threads too: `read --thread <ts> --limit 1` is the newest reply. A thread read includes the parent, which counts toward `--limit`; a line is a real reply when its `ts` differs from the thread parent `ts`.
+- The `user` field is a Slack user **ID** (`U...`), not a display name.
 
 ## Ask: reply vs. timeout
 
 `ask` posts a message, then polls the thread for a reply from someone other than the bot.
 
-- **Got a reply:** exit code `0`, the reply printed as JSONL on stdout.
-- **Timed out:** exit code `1`, nothing on stdout, `{"error":"timeout","detail":"..."}` on stderr.
+- **Got a reply:** exit `0`, the reply printed as JSONL on stdout.
+- **Timed out:** exit `5`, `{"error":"timeout",...}` on stderr.
+- Other failures (API/auth/config) use exit `1`/`2`/`3`.
 
-Exit `1` also covers auth/API errors, so to be certain it was a timeout, inspect the stderr `"error"` field rather than relying on the exit code alone. The poll interval (`--poll`, default 10s) means a reply is only noticed on a tick and the wait can overshoot `--timeout` by up to one interval; use `--poll 5` for tighter windows.
+Branch cleanly on the exit code — no stderr parsing:
+
+```bash
+if out=$(slackline ask --channel '#ops' --message 'ready?' --timeout 120); then
+  echo "reply: $out"
+elif [ $? -eq 5 ]; then
+  echo "timed out"
+else
+  echo "error"
+fi
+```
+
+The poll interval (`--poll`, default 10s) means the wait can overshoot `--timeout` by up to one interval; use `--poll 5` for tighter windows.
 
 ## Listening for events
 
-`slackline listen` streams events as JSONL to **stdout**; connection status (`connected`, `reconnecting`, `disconnected`) goes to **stderr** as plain text. Keep them separate so status lines don't corrupt JSON parsing. Requires both bot and app tokens (Socket Mode).
+`slackline listen` streams events as JSONL to **stdout**; connection status (`connected`, `reconnecting`, `disconnected`) goes to **stderr**. Requires both bot and app tokens (Socket Mode).
 
-Default event types (no flags): `mention`, `dm`, `reaction_added`, `reaction_removed`, and `thread_reply` for threads the bot started. Events from the bot itself are filtered unless `--include-bot-self`. `--all-messages` is a firehose of every message in every channel the bot is in.
-
-Each event has `type`, `channel`, `user`, `ts`, often `thread_ts`, and a `files` array when attachments are present. Watch for mentions and react to each:
+Use `--type` to emit only what you care about — no `jq .type` filter needed:
 
 ```bash
-slackline listen | while IFS= read -r line; do
-  [ "$(jq -r .type <<<"$line")" = "mention" ] || continue
+slackline listen --type mention | while IFS= read -r line; do
   ch=$(jq -r .channel <<<"$line")
   ts=$(jq -r .ts <<<"$line")
   slackline react add --channel "$ch" --emoji eyes --ts "$ts"
 done
 ```
 
-`react` is idempotent (re-reacting is a safe no-op) and `--emoji` takes the name **without colons** (`white_check_mark`, not `:white_check_mark:`).
+- Valid `--type` values: `mention`, `dm`, `thread_reply`, `channel_message`, `reaction`. Comma-separate for several (`--type mention,dm`). Unknown values error.
+- `--type` is an emit-time filter, not a subscription widener: `--type thread_reply` still only sees the bot's own threads unless you add `--all-messages`. `channel_message` **requires** `--all-messages`.
+- Default (no `--type`, no flags): `mention`, `dm`, `reaction`, and bot-parent `thread_reply`. Bot self-events are filtered unless `--include-bot-self`.
+
+A reaction event is a single `reaction` type with an `action` field:
+
+```json
+{"type":"reaction","action":"added","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
+```
+
+`react` is idempotent; `--emoji` takes the bare name (`white_check_mark`, not `:white_check_mark:`).
 
 ## Files
 
-A file shows up as a `files` array on an event, carrying `id`/`name`/`mimetype`/`size`/`title` but **no URL**. Download it by ID with `slackline download --file <id> --out <path>`. Note: file uploads arrive as a `message`/`dm`/`thread_reply` event (Slack subtype `file_share`), **never as a `mention`** — to catch file-bearing messages in a channel you must run `listen --all-messages`.
+A file shows up as a `files` array on an event (`id`/`name`/`mimetype`/`size`/`title`, **no URL**). Download by ID with `slackline download --file <id> --out <path>`. File uploads arrive as a `dm`/`channel_message`/`thread_reply` event (Slack subtype `file_share`), **never as a `mention`** — to catch them in a channel, `listen --all-messages` (optionally `--type channel_message,thread_reply`).
 
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 1 | Slack API error (includes `ask` timeout) |
+| 1 | Slack API error |
 | 2 | Auth error (invalid/revoked token) |
 | 3 | Config error (missing file/token) |
 | 4 | Usage error (bad flags) |
+| 5 | Timeout (`ask` received no reply) |
 
 All errors are written to stderr as JSON: `{"error":"...","detail":"..."}`.
 
+## Provisioning a new bot
+
+Creating a brand-new bot is an admin flow (browser automation for Slack's install + token-collection screens). See **`provisioning.md`** next to this file for the end-to-end recipe, and `copy-buttons.md` for the selector reference.
+
 ## Common mistakes
 
-- **Taking the first line as newest.** `read` is oldest-first; the newest is the last line.
 - **Reading a channel the bot hasn't joined.** Returns `not_in_channel`; the bot must be invited.
 - **Parsing `listen` stdout as if it included status.** Status is on stderr; only stdout is JSONL.
 - **Filtering `listen` for `mention` to catch file uploads.** Files come on `message`-family events with `--all-messages`, not on mentions.
-- **Treating any non-zero `ask` exit as a timeout.** Check the stderr `"error"` field.
 - **Passing emoji with colons.** Use the bare name.
+- **Matching `reaction_added`/`reaction_removed`.** It's one `reaction` event now — branch on `action`.
