@@ -2,7 +2,10 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.3] - 2026-06-01
+
+### Added
+- `using-slack` skill (`skills/using-slack/`) documenting the CLI for agents, and `.claude-plugin/marketplace.json` so the plugin is installable via `/plugin marketplace add prime-radiant-inc/slackline`.
 
 ### Fixed
 - `slackline read --thread` now returns the newest replies instead of the oldest. `conversations.replies` pages oldest-first, and the fetch loop stopped after collecting `--limit` messages — so on any thread with more replies than `--limit`, the newest reply (the true tail) was silently dropped at every limit. This broke thread polling: a watcher comparing the newest `ts` never saw new replies land. Thread reads now page to the end and keep the newest `--limit` messages, matching channel reads.
