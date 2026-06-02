@@ -12,9 +12,9 @@ One binary. One config file. One bot identity.
 bash <(gh api repos/prime-radiant-inc/slackline/contents/install.sh --jq '.content | @base64d')
 ```
 
-Installs to `~/.local/bin/slackline`. The script verifies the downloaded release asset's GitHub artifact attestation before installing and warns if that directory isn't in `$PATH`.
+Installs to `~/.local/bin/slackline`. The script verifies the downloaded release asset's GitHub SHA-256 digest before installing and warns if that directory isn't in `$PATH`.
 
-> When the repo goes public, `gh` is still required for release attestation verification. Fetch the installer with `curl -fsSL https://raw.githubusercontent.com/prime-radiant-inc/slackline/main/install.sh | bash`, then let the script verify the release asset before install.
+> When the repo goes public, `gh` is still required for release metadata and digest verification. Fetch the installer with `curl -fsSL https://raw.githubusercontent.com/prime-radiant-inc/slackline/main/install.sh | bash`, then let the script verify the release asset before install.
 
 **Supported platforms:** `darwin/arm64`, `linux/amd64`
 

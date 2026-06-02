@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestInstallFailsWhenAttestationVerificationFails(t *testing.T) {
+func TestInstallFailsWhenReleaseDigestDoesNotMatch(t *testing.T) {
 	tmp := t.TempDir()
 	binDir := filepath.Join(tmp, "bin")
 	home := filepath.Join(tmp, "home")
@@ -30,7 +30,12 @@ esac
 printf '%s\n' "$*" >> "$GH_LOG"
 case "$1 $2" in
   "auth status") exit 0 ;;
-  "release view") echo v1.2.3; exit 0 ;;
+  "release view")
+    case "$*" in
+      *"tagName"*) echo v1.2.3; exit 0 ;;
+      *"assets"*) echo sha256:0000000000000000000000000000000000000000000000000000000000000000; exit 0 ;;
+    esac
+    exit 1 ;;
   "release download")
     while [ "$#" -gt 0 ]; do
       if [ "$1" = "--output" ]; then
@@ -45,7 +50,6 @@ BIN
       shift
     done
     exit 1 ;;
-  "attestation verify") exit 1 ;;
 esac
 exit 1
 `)
@@ -58,17 +62,23 @@ exit 1
 	)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("install should fail when attestation verification fails; output:\n%s", out)
+		t.Fatalf("install should fail when release digest does not match; output:\n%s", out)
+	}
+	if !strings.Contains(string(out), "release asset digest mismatch") {
+		t.Fatalf("install failed for the wrong reason; output:\n%s", out)
 	}
 	logBytes, readErr := os.ReadFile(ghLog)
 	if readErr != nil {
 		t.Fatalf("ReadFile gh log: %v", readErr)
 	}
-	if !strings.Contains(string(logBytes), "attestation verify") {
-		t.Fatalf("installer did not attempt attestation verification; gh log:\n%s", logBytes)
+	if !strings.Contains(string(logBytes), "release view") {
+		t.Fatalf("installer did not inspect release metadata; gh log:\n%s", logBytes)
+	}
+	if strings.Contains(string(logBytes), "attestation verify") {
+		t.Fatalf("installer should not call unsupported attestation verification; gh log:\n%s", logBytes)
 	}
 	if _, statErr := os.Stat(filepath.Join(home, ".local", "bin", "slackline")); !os.IsNotExist(statErr) {
-		t.Fatalf("binary should not be installed when attestation verification fails")
+		t.Fatalf("binary should not be installed when release digest does not match")
 	}
 }
 

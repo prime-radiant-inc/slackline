@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-06-02
+
+### Changed
+- The installer now verifies the downloaded binary against GitHub's release asset SHA-256 digest.
+
+### Fixed
+- Release publication now works for this private repo by avoiding GitHub Artifact Attestations, which require Enterprise Cloud for private repositories.
+
 ## [0.3.1] - 2026-06-02
 
 ### Added

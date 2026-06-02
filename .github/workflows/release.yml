@@ -6,9 +6,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
-  attestations: write
-  artifact-metadata: write
 
 jobs:
   release:
@@ -31,10 +28,6 @@ jobs:
         run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.version=${{ github.ref_name }}" -o "${{ matrix.binary }}" .
       - name: Sanity check
         run: file "${{ matrix.binary }}"
-      - name: Attest build provenance
-        uses: actions/attest@v4
-        with:
-          subject-path: ${{ matrix.binary }}
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:

@@ -36,19 +36,31 @@ fi
 ASSET="${BINARY}-${os}-${arch}"
 
 if ! command -v gh &>/dev/null; then
-  echo "GitHub CLI (gh) is required so release attestations can be verified." >&2
+  echo "GitHub CLI (gh) is required so release metadata can be verified." >&2
   exit 1
 fi
 
-# Fetch latest release tag: prefer authenticated gh (works for private repos), fall back to curl
-echo "Fetching latest release..."
-if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-  TAG=$(gh release view --repo "${REPO}" --json tagName -q .tagName 2>/dev/null)
-else
-  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' \
-    | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+if ! gh auth status &>/dev/null 2>&1; then
+  echo "GitHub CLI (gh) must be authenticated to install from ${REPO}." >&2
+  exit 1
 fi
+
+sha256_file() {
+  if command -v shasum &>/dev/null; then
+    shasum -a 256 "$1" | awk '{print $1}'
+    return
+  fi
+  if command -v sha256sum &>/dev/null; then
+    sha256sum "$1" | awk '{print $1}'
+    return
+  fi
+  echo "No SHA-256 checksum tool found (need shasum or sha256sum)." >&2
+  return 1
+}
+
+# Fetch latest release tag and expected asset digest via gh (works for private repos)
+echo "Fetching latest release..."
+TAG=$(gh release view --repo "${REPO}" --json tagName -q .tagName 2>/dev/null || true)
 
 if [ -z "$TAG" ]; then
   echo "Failed to fetch latest release tag." >&2
@@ -57,17 +69,24 @@ fi
 
 echo "Installing ${BINARY} ${TAG} (${os}/${arch})..."
 
+EXPECTED_DIGEST=$(gh release view "${TAG}" --repo "${REPO}" --json assets -q ".assets[] | select(.name == \"${ASSET}\") | .digest" 2>/dev/null || true)
+if [ -z "$EXPECTED_DIGEST" ]; then
+  echo "Failed to fetch release asset digest for ${ASSET}." >&2
+  exit 1
+fi
+case "$EXPECTED_DIGEST" in
+  sha256:*) EXPECTED_SHA=${EXPECTED_DIGEST#sha256:} ;;
+  *)
+    echo "Unsupported release asset digest: ${EXPECTED_DIGEST}" >&2
+    exit 1
+    ;;
+esac
+
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
-# Download: prefer gh (works for private repos), fall back to curl (works for public repos)
-if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-  echo "Downloading via gh..."
-  gh release download "${TAG}" --repo "${REPO}" --pattern "${ASSET}" --output "$TMP" --clobber
-else
-  echo "Downloading via curl..."
-  curl -fsSL "https://github.com/${REPO}/releases/download/${TAG}/${ASSET}" -o "$TMP"
-fi
+echo "Downloading via gh..."
+gh release download "${TAG}" --repo "${REPO}" --pattern "${ASSET}" --output "$TMP" --clobber
 
 # Validate: non-empty and not an HTML error page
 if [ ! -s "$TMP" ]; then
@@ -78,9 +97,10 @@ if grep -q "<!DOCTYPE" "$TMP" 2>/dev/null; then
   echo "Download failed: received HTML instead of binary." >&2
   exit 1
 fi
-echo "Verifying release attestation..."
-if ! gh attestation verify "$TMP" --repo "${REPO}" >/dev/null; then
-  echo "Download failed: release attestation verification failed." >&2
+echo "Verifying release asset digest..."
+ACTUAL_SHA=$(sha256_file "$TMP")
+if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+  echo "Download failed: release asset digest mismatch." >&2
   exit 1
 fi
 
