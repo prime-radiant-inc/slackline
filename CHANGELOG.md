@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-06-02
+
+### Added
+- Release builds now generate GitHub artifact attestations, and the installer verifies the downloaded binary's attestation before installing it.
+
+### Changed
+- The installer now requires the GitHub CLI (`gh`) so release attestations can be verified.
+- The Go toolchain baseline is now `1.25.10`.
+
+### Fixed
+- Runtime and provisioning config rewrites now repair existing permissive file modes back to `0600`.
+- Interactive token prompts now require a terminal and read secrets without echoing pasted tokens.
+- `slackline download --out PATH` now uses random same-directory temporary files and no-replace finalization when `--force=false`.
+- Socket Mode self-event filtering now handles Slack events that identify the bot by `bot_id`.
+
 ## [0.3.0] - 2026-06-01
 
 ### Added
