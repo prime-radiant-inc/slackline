@@ -35,7 +35,12 @@ fi
 
 ASSET="${BINARY}-${os}-${arch}"
 
-# Fetch latest release tag: prefer gh (works for private repos), fall back to curl
+if ! command -v gh &>/dev/null; then
+  echo "GitHub CLI (gh) is required so release attestations can be verified." >&2
+  exit 1
+fi
+
+# Fetch latest release tag: prefer authenticated gh (works for private repos), fall back to curl
 echo "Fetching latest release..."
 if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
   TAG=$(gh release view --repo "${REPO}" --json tagName -q .tagName 2>/dev/null)
@@ -71,6 +76,11 @@ if [ ! -s "$TMP" ]; then
 fi
 if grep -q "<!DOCTYPE" "$TMP" 2>/dev/null; then
   echo "Download failed: received HTML instead of binary." >&2
+  exit 1
+fi
+echo "Verifying release attestation..."
+if ! gh attestation verify "$TMP" --repo "${REPO}" >/dev/null; then
+  echo "Download failed: release attestation verification failed." >&2
   exit 1
 fi
 

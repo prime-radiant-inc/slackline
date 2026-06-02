@@ -107,7 +107,7 @@ func runListen(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: err.Error()}
 	}
 
-	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, listen.ListenerOptions{
+	listener := listen.NewListener(cfg.Bot.BotToken, cfg.Bot.AppToken, authResp.UserID, authResp.BotID, listen.ListenerOptions{
 		IncludeBotSelf: listenIncludeBotSelf,
 		Threads:        listenThreads || listenAllMessages,
 		AllMessages:    listenAllMessages,

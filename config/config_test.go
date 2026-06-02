@@ -81,6 +81,28 @@ func TestSave_FilePermissions(t *testing.T) {
 	}
 }
 
+func TestSave_RepairsExistingFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	if err := os.WriteFile(path, []byte(`{"version":1}`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg := &Config{Version: 1}
+	if err := Save(cfg, path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("file permissions = %o, want 0600", perm)
+	}
+}
+
 func TestSave_CreatesParentDir(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "a", "b", "c")
@@ -197,6 +219,28 @@ func TestProvisionConfig_RoundTrip(t *testing.T) {
 	}
 	if got.RefreshToken != want.RefreshToken {
 		t.Errorf("RefreshToken = %q, want %q", got.RefreshToken, want.RefreshToken)
+	}
+}
+
+func TestSaveProvision_RepairsExistingFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "provision.json")
+
+	if err := os.WriteFile(path, []byte(`{"config_token":"old","refresh_token":"old"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg := &ProvisionConfig{ConfigToken: "xoxe.cfg", RefreshToken: "xoxe-ref"}
+	if err := SaveProvision(cfg, path); err != nil {
+		t.Fatalf("SaveProvision: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("file permissions = %o, want 0600", perm)
 	}
 }
 

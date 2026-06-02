@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -65,6 +66,40 @@ func readEnvInputs() (*initEnvInputs, error) {
 	return &initEnvInputs{botToken: bot, appToken: app, workspaceURL: url}, nil
 }
 
+func readInteractiveInitInputs(stdin io.Reader, output io.Writer) (*initEnvInputs, error) {
+	reader := bufio.NewReader(stdin)
+
+	_, _ = fmt.Fprint(output, "Workspace URL (e.g. https://myteam.slack.com): ")
+	workspaceURL, _ := reader.ReadString('\n')
+	workspaceURL = strings.TrimSpace(workspaceURL)
+
+	botToken, err := readSecretLine(stdin, "Bot Token (xoxb-): ", output)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(botToken, "xoxb-") {
+		return nil, &errs.SlackError{
+			Code:   errs.Usage,
+			Err:    errs.CodeInvalidToken,
+			Detail: "Bot token must start with 'xoxb-'. You may have pasted the wrong token type.",
+		}
+	}
+
+	appToken, err := readSecretLine(stdin, "App Token (xapp-): ", output)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(appToken, "xapp-") {
+		return nil, &errs.SlackError{
+			Code:   errs.Usage,
+			Err:    errs.CodeInvalidToken,
+			Detail: "App token must start with 'xapp-'. You may have pasted the wrong token type.",
+		}
+	}
+
+	return &initEnvInputs{botToken: botToken, appToken: appToken, workspaceURL: workspaceURL}, nil
+}
+
 func runInit(cmd *cobra.Command, args []string) error {
 	// Check for non-interactive mode via env vars before touching stdin.
 	envInputs, err := readEnvInputs()
@@ -112,40 +147,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Interactive path — existing code follows unchanged.
-	reader := bufio.NewReader(os.Stdin)
-
-	// Prompt for workspace URL (optional, for display)
-	fmt.Print("Workspace URL (e.g. https://myteam.slack.com): ")
-	workspaceURL, _ := reader.ReadString('\n')
-	workspaceURL = strings.TrimSpace(workspaceURL)
-
-	// Prompt for bot token
-	fmt.Print("Bot Token (xoxb-): ")
-	botToken, _ := reader.ReadString('\n')
-	botToken = strings.TrimSpace(botToken)
-	if !strings.HasPrefix(botToken, "xoxb-") {
-		return &errs.SlackError{
-			Code:   errs.Usage,
-			Err:    errs.CodeInvalidToken,
-			Detail: "Bot token must start with 'xoxb-'. You may have pasted the wrong token type.",
-		}
-	}
-
-	// Prompt for app token
-	fmt.Print("App Token (xapp-): ")
-	appToken, _ := reader.ReadString('\n')
-	appToken = strings.TrimSpace(appToken)
-	if !strings.HasPrefix(appToken, "xapp-") {
-		return &errs.SlackError{
-			Code:   errs.Usage,
-			Err:    errs.CodeInvalidToken,
-			Detail: "App token must start with 'xapp-'. You may have pasted the wrong token type.",
-		}
+	interactiveInputs, err := readInteractiveInitInputs(os.Stdin, os.Stdout)
+	if err != nil {
+		return err
 	}
 
 	// Validate bot token via auth.test
-	api := slackpkg.NewClient(botToken)
+	api := slackpkg.NewClient(interactiveInputs.botToken)
 	authResp, err := api.AuthTest()
 	if err != nil {
 		if isAuthError(err) {
@@ -168,12 +176,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Workspace: config.Workspace{
 			Name:   authResp.Team,
 			TeamID: authResp.TeamID,
-			URL:    workspaceURL,
+			URL:    interactiveInputs.workspaceURL,
 		},
 		Bot: config.Bot{
 			Name:     authResp.User,
-			BotToken: botToken,
-			AppToken: appToken,
+			BotToken: interactiveInputs.botToken,
+			AppToken: interactiveInputs.appToken,
 		},
 	}
 

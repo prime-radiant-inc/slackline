@@ -96,6 +96,68 @@ func TestDownload_ExistingFileForce(t *testing.T) {
 	}
 }
 
+func TestDownload_IgnoresPreexistingSidecarSymlink(t *testing.T) {
+	api := &fakeSlackAPI{
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "x"},
+		getFileBytes:    []byte(testFileContent),
+	}
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "x.txt")
+	victim := filepath.Join(tmp, "victim.txt")
+	if err := os.WriteFile(victim, []byte("victim"), 0o600); err != nil {
+		t.Fatalf("WriteFile victim: %v", err)
+	}
+	if err := os.Symlink(victim, out+".tmp"); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	err := runDownloadWithAPI(api, "F1", out, false, 100*1024*1024, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
+
+	gotVictim, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatalf("ReadFile victim: %v", err)
+	}
+	if string(gotVictim) != "victim" {
+		t.Errorf("preexisting sidecar symlink target was modified: %q", gotVictim)
+	}
+	gotOut, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("ReadFile out: %v", err)
+	}
+	if string(gotOut) != testFileContent {
+		t.Errorf("downloaded file = %q, want %q", gotOut, testFileContent)
+	}
+}
+
+func TestDownload_FinalPathRaceDoesNotOverwriteWithoutForce(t *testing.T) {
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "x.txt")
+	api := &fakeSlackAPI{
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "x"},
+		getFileBytes:    []byte(testFileContent),
+		beforeGetFileWrite: func() {
+			if err := os.WriteFile(out, []byte("raced"), 0o600); err != nil {
+				t.Fatalf("WriteFile raced target: %v", err)
+			}
+		},
+	}
+
+	err := runDownloadWithAPI(api, "F1", out, false, 100*1024*1024, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error when final path appears before commit")
+	}
+	got, readErr := os.ReadFile(out)
+	if readErr != nil {
+		t.Fatalf("ReadFile out: %v", readErr)
+	}
+	if string(got) != "raced" {
+		t.Errorf("raced file should be untouched, got %q", got)
+	}
+}
+
 func TestDownload_SizeExceedsCap(t *testing.T) {
 	api := &fakeSlackAPI{
 		getFileInfoFile: &goslack.File{ID: "F1", Name: "big.bin", Size: 1024 * 1024},

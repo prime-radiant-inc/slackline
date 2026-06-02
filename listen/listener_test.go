@@ -13,6 +13,7 @@ import (
 
 const (
 	testBotUserID     = "UBOT123"
+	testBotID         = "B123"
 	testChannelID     = "C123"
 	testOtherUserID   = "U999"
 	testEventTS       = "100.001"
@@ -20,6 +21,9 @@ const (
 	testThreadTS      = "100.000"
 	testItemTS        = "300.001"
 	testEmojiThumbsup = "thumbsup"
+	testSelfText      = "I mentioned myself"
+	testFileID        = "F123"
+	testReportName    = "report.pdf"
 )
 
 // newTestListener creates a Listener with only the fields needed for
@@ -28,6 +32,7 @@ func newTestListener() (*Listener, *bytes.Buffer) {
 	buf := &bytes.Buffer{}
 	l := &Listener{
 		botUserID: testBotUserID,
+		botID:     testBotID,
 		out:       buf,
 		status:    &bytes.Buffer{},
 	}
@@ -193,12 +198,25 @@ func TestHandleEventsAPI_MentionSelfFiltered(t *testing.T) {
 	l, buf := newTestListener()
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
 		User:    testBotUserID, // bot's own message
-		Text:    "I mentioned myself",
+		Text:    testSelfText,
 		Channel: testChannelID,
 	}))
 
 	if buf.Len() != 0 {
 		t.Errorf("self-mention should be dropped, got: %s", buf.String())
+	}
+}
+
+func TestHandleEventsAPI_MentionSelfFilteredByBotID(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
+		BotID:   testBotID,
+		Text:    testSelfText,
+		Channel: testChannelID,
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("self-mention with bot_id should be dropped, got: %s", buf.String())
 	}
 }
 
@@ -233,6 +251,23 @@ func TestHandleEventsAPI_DMSelfFiltered(t *testing.T) {
 
 	if buf.Len() != 0 {
 		t.Errorf("self-DM should be dropped, got: %s", buf.String())
+	}
+}
+
+func TestHandleEventsAPI_FileShareDMSelfFilteredByBotID(t *testing.T) {
+	l, buf := newTestListener()
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		BotID:   testBotID,
+		Text:    "my own file",
+		Channel: fixtureDMID,
+		SubType: messageSubtypeFileShare,
+		Message: &goslack.Msg{
+			Files: []goslack.File{{ID: testFileID, Name: testReportName}},
+		},
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("self file_share with bot_id should be dropped, got: %s", buf.String())
 	}
 }
 
@@ -387,7 +422,7 @@ func TestHandleEventsAPI_IncludeBotSelf_Mention(t *testing.T) {
 	l.includeBotSelf = true
 	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.AppMentionEvent{
 		User:    testBotUserID,
-		Text:    "I mentioned myself",
+		Text:    testSelfText,
 		Channel: testChannelID,
 	}))
 
@@ -423,7 +458,7 @@ func TestHandleEventsAPI_DM_WithFiles(t *testing.T) {
 		// Files live on MessageEvent.Message (*goslack.Msg), not on MessageEvent directly.
 		Message: &goslack.Msg{
 			Files: []goslack.File{
-				{ID: "F123", Name: "report.pdf", Mimetype: "application/pdf", Size: 12345, Title: "Q4 Report"},
+				{ID: testFileID, Name: testReportName, Mimetype: "application/pdf", Size: 12345, Title: "Q4 Report"},
 				{ID: "F456", Name: "extra.png", Mimetype: "image/png", Size: 6789},
 			},
 		},
@@ -441,10 +476,10 @@ func TestHandleEventsAPI_DM_WithFiles(t *testing.T) {
 		t.Fatalf("files length = %d, want 2", len(files))
 	}
 	first := files[0].(map[string]interface{})
-	if first["id"] != "F123" {
+	if first["id"] != testFileID {
 		t.Errorf("files[0].id = %v", first["id"])
 	}
-	if first["name"] != "report.pdf" {
+	if first["name"] != testReportName {
 		t.Errorf("files[0].name = %v", first["name"])
 	}
 	if first["mimetype"] != "application/pdf" {

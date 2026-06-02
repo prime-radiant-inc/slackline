@@ -78,7 +78,10 @@ func Save(cfg *Config, path string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o600)
+	if err := writePrivateFile(path, data); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	return nil
 }
 
 func LoadProvision(path string) (*ProvisionConfig, error) {
@@ -102,7 +105,17 @@ func SaveProvision(cfg *ProvisionConfig, path string) error {
 		return fmt.Errorf("marshal provision config: %w", err)
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o600)
+	if err := writePrivateFile(path, data); err != nil {
+		return fmt.Errorf("write provision config: %w", err)
+	}
+	return nil
+}
+
+func writePrivateFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func applyEnvOverrides(cfg *Config) {

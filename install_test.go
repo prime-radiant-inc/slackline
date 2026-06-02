@@ -1,0 +1,80 @@
+package main
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestInstallFailsWhenAttestationVerificationFails(t *testing.T) {
+	tmp := t.TempDir()
+	binDir := filepath.Join(tmp, "bin")
+	home := filepath.Join(tmp, "home")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll binDir: %v", err)
+	}
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatalf("MkdirAll home: %v", err)
+	}
+
+	writeExecutable(t, filepath.Join(binDir, "uname"), `#!/bin/sh
+case "$1" in
+  -s) echo Linux ;;
+  -m) echo x86_64 ;;
+esac
+`)
+	ghLog := filepath.Join(tmp, "gh.log")
+	writeExecutable(t, filepath.Join(binDir, "gh"), `#!/bin/sh
+printf '%s\n' "$*" >> "$GH_LOG"
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "release view") echo v1.2.3; exit 0 ;;
+  "release download")
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--output" ]; then
+        shift
+        cat > "$1" <<'BIN'
+#!/bin/sh
+echo slackline test
+BIN
+        chmod +x "$1"
+        exit 0
+      fi
+      shift
+    done
+    exit 1 ;;
+  "attestation verify") exit 1 ;;
+esac
+exit 1
+`)
+
+	cmd := exec.Command("bash", "./install.sh")
+	cmd.Env = append(os.Environ(),
+		"GH_LOG="+ghLog,
+		"HOME="+home,
+		"PATH="+binDir+":"+os.Getenv("PATH"),
+	)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("install should fail when attestation verification fails; output:\n%s", out)
+	}
+	logBytes, readErr := os.ReadFile(ghLog)
+	if readErr != nil {
+		t.Fatalf("ReadFile gh log: %v", readErr)
+	}
+	if !strings.Contains(string(logBytes), "attestation verify") {
+		t.Fatalf("installer did not attempt attestation verification; gh log:\n%s", logBytes)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, ".local", "bin", "slackline")); !os.IsNotExist(statErr) {
+		t.Fatalf("binary should not be installed when attestation verification fails")
+	}
+}
+
+func writeExecutable(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
+		t.Fatalf("WriteFile %s: %v", path, err)
+	}
+}

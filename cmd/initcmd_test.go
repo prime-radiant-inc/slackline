@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/prime-radiant-inc/slackline/errs"
@@ -108,5 +109,37 @@ func TestReadEnvInputs_BadAppPrefix(t *testing.T) {
 	}
 	if se.Code != errs.Usage {
 		t.Errorf("exit code = %d, want %d (Usage)", se.Code, errs.Usage)
+	}
+}
+
+func TestReadInteractiveInitInputsUsesSecretReader(t *testing.T) {
+	restore := stubReadSecretLine(t, "xoxb-secret", "xapp-secret")
+	defer restore()
+
+	inputs, err := readInteractiveInitInputs(
+		bytes.NewBufferString("https://myteam.slack.com\n"),
+		&bytes.Buffer{},
+	)
+	if err != nil {
+		t.Fatalf("readInteractiveInitInputs: %v", err)
+	}
+	if inputs.workspaceURL != "https://myteam.slack.com" {
+		t.Errorf("workspaceURL = %q", inputs.workspaceURL)
+	}
+	if inputs.botToken != "xoxb-secret" {
+		t.Errorf("botToken = %q", inputs.botToken)
+	}
+	if inputs.appToken != "xapp-secret" {
+		t.Errorf("appToken = %q", inputs.appToken)
+	}
+}
+
+func TestReadSecretLineRejectsNonTTYInput(t *testing.T) {
+	_, err := defaultReadSecretLine(bytes.NewBufferString("xoxb-secret\n"), "Bot Token: ", &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected non-TTY secret input to fail")
+	}
+	if se, ok := err.(*errs.SlackError); !ok || se.Err != "non_tty_secret_input" {
+		t.Fatalf("err = %#v, want non_tty_secret_input SlackError", err)
 	}
 }

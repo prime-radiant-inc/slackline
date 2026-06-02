@@ -13,11 +13,14 @@ import (
 	"github.com/slack-go/slack/socketmode"
 )
 
+const messageSubtypeFileShare = "file_share"
+
 // Listener connects to Slack via Socket Mode and emits events as JSONL.
 type Listener struct {
 	api            *goslack.Client
 	sm             *socketmode.Client
 	botUserID      string
+	botID          string
 	out            io.Writer
 	status         io.Writer
 	includeBotSelf bool
@@ -36,14 +39,15 @@ type ListenerOptions struct {
 
 // NewListener creates a Socket Mode listener.
 // botToken is the xoxb- token; appToken is the xapp- token.
-// botUserID is used to filter self-messages.
-func NewListener(botToken, appToken, botUserID string, opts ListenerOptions, out, status io.Writer) *Listener {
+// botUserID and botID are used to filter self-messages.
+func NewListener(botToken, appToken, botUserID, botID string, opts ListenerOptions, out, status io.Writer) *Listener {
 	api := goslack.New(botToken, goslack.OptionAppLevelToken(appToken))
 	sm := socketmode.New(api)
 	return &Listener{
 		api:            api,
 		sm:             sm,
 		botUserID:      botUserID,
+		botID:          botID,
 		out:            out,
 		status:         status,
 		includeBotSelf: opts.IncludeBotSelf,
@@ -55,11 +59,11 @@ func NewListener(botToken, appToken, botUserID string, opts ListenerOptions, out
 
 // shouldFilterSelf reports whether an event from the given user should be
 // suppressed because it was authored by the bot itself.
-func (l *Listener) shouldFilterSelf(user string) bool {
+func (l *Listener) shouldFilterSelf(user, botID string) bool {
 	if l.includeBotSelf {
 		return false
 	}
-	return user == l.botUserID
+	return (user != "" && user == l.botUserID) || (botID != "" && botID == l.botID)
 }
 
 // Run starts the Socket Mode connection and blocks until interrupted.
@@ -132,7 +136,7 @@ func (l *Listener) handleEvent(evt socketmode.Event) {
 func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 	switch ev := evt.InnerEvent.Data.(type) {
 	case *slackevents.AppMentionEvent:
-		if l.shouldFilterSelf(ev.User) {
+		if l.shouldFilterSelf(ev.User, ev.BotID) {
 			return // Self-filter
 		}
 		l.emit(Event{
@@ -150,11 +154,11 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		}
 		// DM channels (D...) flow through the DM path.
 		if ev.Channel[0] == 'D' {
-			if l.shouldFilterSelf(ev.User) {
+			if l.shouldFilterSelf(ev.User, ev.BotID) {
 				return
 			}
 			// Allow file_share subtype since it carries Files; skip other subtypes.
-			if ev.SubType != "" && ev.SubType != "file_share" {
+			if ev.SubType != "" && ev.SubType != messageSubtypeFileShare {
 				return
 			}
 			l.emit(Event{
@@ -169,10 +173,10 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 			return
 		}
 		// Non-DM (C... public, G... private). Emit only when a mode allows it.
-		if l.shouldFilterSelf(ev.User) {
+		if l.shouldFilterSelf(ev.User, ev.BotID) {
 			return
 		}
-		if ev.SubType != "" && ev.SubType != "file_share" {
+		if ev.SubType != "" && ev.SubType != messageSubtypeFileShare {
 			return
 		}
 		isThread := ev.ThreadTimeStamp != "" && ev.ThreadTimeStamp != ev.TimeStamp
@@ -213,7 +217,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		}
 
 	case *slackevents.ReactionAddedEvent:
-		if l.shouldFilterSelf(ev.User) {
+		if l.shouldFilterSelf(ev.User, "") {
 			return // Self-filter
 		}
 		l.emit(Event{
@@ -226,7 +230,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		})
 
 	case *slackevents.ReactionRemovedEvent:
-		if l.shouldFilterSelf(ev.User) {
+		if l.shouldFilterSelf(ev.User, "") {
 			return
 		}
 		l.emit(Event{

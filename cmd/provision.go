@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/prime-radiant-inc/slackline/config"
 	"github.com/prime-radiant-inc/slackline/errs"
@@ -160,16 +158,18 @@ func runProvisionBootstrapWithDeps(provPath string, stdin io.Reader, stderr io.W
 		_, _ = fmt.Fprintln(stderr, "No config token found. Generate one at https://api.slack.com/apps")
 		_, _ = fmt.Fprintln(stderr, "  → scroll to \"Your App Configuration Tokens\" → Generate Token.")
 		_, _ = fmt.Fprintln(stderr, "")
-		reader := bufio.NewReader(stdin)
-		_, _ = fmt.Fprint(stderr, "Paste your config token: ")
-		line, _ := reader.ReadString('\n')
-		cfgTok = strings.TrimSpace(line)
+		var err error
+		cfgTok, err = readSecretLine(stdin, "Paste your config token: ", stderr)
+		if err != nil {
+			return err
+		}
 		if cfgTok == "" {
 			return &errs.SlackError{Code: errs.Usage, Err: "empty_config_token", Detail: "config token cannot be empty"}
 		}
-		_, _ = fmt.Fprint(stderr, "Paste your refresh token: ")
-		line, _ = reader.ReadString('\n')
-		refTok = strings.TrimSpace(line)
+		refTok, err = readSecretLine(stdin, "Paste your refresh token: ", stderr)
+		if err != nil {
+			return err
+		}
 		if refTok == "" {
 			return &errs.SlackError{Code: errs.Usage, Err: "empty_refresh_token", Detail: "refresh token cannot be empty"}
 		}

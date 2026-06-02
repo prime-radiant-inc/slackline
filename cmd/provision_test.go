@@ -346,7 +346,14 @@ func TestProvisionBootstrap_FromStdin(t *testing.T) {
 	t.Setenv("SLACKLINE_CONFIG_TOKEN", "")
 	t.Setenv("SLACKLINE_REFRESH_TOKEN", "")
 
-	stdin := bytes.NewBufferString("xoxe.cfg-stdin\nxoxe-ref-stdin\n")
+	restore := stubReadSecretLine(
+		t,
+		"xoxe.cfg-stdin",
+		"xoxe-ref-stdin",
+	)
+	defer restore()
+
+	stdin := bytes.NewBufferString("")
 	stderr := &bytes.Buffer{}
 	err := runProvisionBootstrapWithDeps(provPath, stdin, stderr)
 	if err != nil {
@@ -359,6 +366,27 @@ func TestProvisionBootstrap_FromStdin(t *testing.T) {
 	}
 	if got.ConfigToken != "xoxe.cfg-stdin" || got.RefreshToken != "xoxe-ref-stdin" {
 		t.Errorf("provision.json = %+v", got)
+	}
+}
+
+func TestProvisionBootstrap_RejectsNonTTYSecretInput(t *testing.T) {
+	tmp := t.TempDir()
+	provPath := filepath.Join(tmp, "provision.json")
+
+	t.Setenv("SLACKLINE_CONFIG_TOKEN", "")
+	t.Setenv("SLACKLINE_REFRESH_TOKEN", "")
+
+	stdin := bytes.NewBufferString("xoxe.cfg-stdin\nxoxe-ref-stdin\n")
+	stderr := &bytes.Buffer{}
+	err := runProvisionBootstrapWithDeps(provPath, stdin, stderr)
+	if err == nil {
+		t.Fatal("expected non-TTY secret input to fail")
+	}
+	if !strings.Contains(err.Error(), "non_tty_secret_input") {
+		t.Fatalf("error = %v, want non_tty_secret_input", err)
+	}
+	if _, statErr := os.Stat(provPath); !os.IsNotExist(statErr) {
+		t.Error("provision.json should not be written when secret input is not a TTY")
 	}
 }
 

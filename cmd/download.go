@@ -74,23 +74,36 @@ func runDownloadWithAPI(api slackpkg.SlackAPI, fileID, outPath string, force boo
 	if _, err := os.Stat(parent); err != nil {
 		return &errs.SlackError{Code: errs.Usage, Err: "no_parent_dir", Detail: fmt.Sprintf("parent dir %s does not exist", parent)}
 	}
-	tmpPath := outPath + ".tmp"
-	tmp, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	tmp, err := os.CreateTemp(parent, "."+filepath.Base(outPath)+".*.tmp")
 	if err != nil {
 		return &errs.SlackError{Code: errs.Usage, Err: "tmp_open_failed", Detail: err.Error()}
 	}
+	tmpPath := tmp.Name()
+	cleanupTmp := true
+	defer func() {
+		if cleanupTmp {
+			_ = os.Remove(tmpPath)
+		}
+	}()
 	if err := api.GetFile(info.URLPrivate, tmp); err != nil {
 		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "download_failed", Detail: err.Error()}
 	}
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
 		return &errs.SlackError{Code: errs.Usage, Err: "tmp_close_failed", Detail: err.Error()}
 	}
-	if err := os.Rename(tmpPath, outPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return &errs.SlackError{Code: errs.Usage, Err: "rename_failed", Detail: err.Error()}
+	if force {
+		if err := os.Rename(tmpPath, outPath); err != nil {
+			return &errs.SlackError{Code: errs.Usage, Err: "rename_failed", Detail: err.Error()}
+		}
+		cleanupTmp = false
+	} else {
+		if err := os.Link(tmpPath, outPath); err != nil {
+			if os.IsExist(err) {
+				return &errs.SlackError{Code: errs.Usage, Err: "out_exists", Detail: fmt.Sprintf("%s already exists; pass --force to overwrite", outPath)}
+			}
+			return &errs.SlackError{Code: errs.Usage, Err: "commit_failed", Detail: err.Error()}
+		}
 	}
 	return writeDownloadSummary(stderr, info, outPath)
 }
