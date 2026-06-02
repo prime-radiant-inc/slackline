@@ -124,11 +124,6 @@ if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
   echo ""
 fi
 
-# Verify
-if command -v "$BINARY" &>/dev/null; then
-  "$BINARY" --version
-else
-  "${INSTALL_DIR}/${BINARY}" --version
-fi
+"${INSTALL_DIR}/${BINARY}" --version
 
 echo "Done."

@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-06-02
+
+### Fixed
+- Installer verification now reports the newly installed binary instead of any older `slackline` already on `PATH`.
+
 ## [0.3.2] - 2026-06-02
 
 ### Changed
