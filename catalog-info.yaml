@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: slackline
+  description: "Single-binary Go CLI giving AI agents a Slack identity to send messages, read channels, and stream events."
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    prime-radiant.com/repo-map-rev: "403016aaef33984ce03c240ee8afde5daaed3431"
+  tags: [go, slack, slack-bot, cli, ai-agents]
+spec:
+  type: tool
+  lifecycle: production
+  owner: user:obra
+  system: agent-libs
