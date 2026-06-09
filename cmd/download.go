@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,40 @@ var (
 )
 
 const defaultMaxDownloadBytes = int64(100 * 1024 * 1024)
+
+var errDownloadBodyTooLarge = errors.New("download body exceeds size cap")
+
+type downloadCapWriter struct {
+	dst     io.Writer
+	limit   int64
+	written int64
+}
+
+func (w *downloadCapWriter) Write(p []byte) (int, error) {
+	remaining := w.limit - w.written
+	if remaining <= 0 {
+		return 0, errDownloadBodyTooLarge
+	}
+	if int64(len(p)) > remaining {
+		n, err := w.dst.Write(p[:remaining])
+		w.written += int64(n)
+		if err != nil {
+			return n, err
+		}
+		return n, errDownloadBodyTooLarge
+	}
+	n, err := w.dst.Write(p)
+	w.written += int64(n)
+	return n, err
+}
+
+func downloadBodyTooLargeError(capBytes int64) error {
+	return &errs.SlackError{
+		Code:   errs.Usage,
+		Err:    "file_too_large",
+		Detail: fmt.Sprintf("download body exceeds cap %d", capBytes),
+	}
+}
 
 var downloadCmd = &cobra.Command{
 	Use:   "download",
@@ -85,8 +120,12 @@ func runDownloadWithAPI(api slackpkg.SlackAPI, fileID, outPath string, force boo
 			_ = os.Remove(tmpPath)
 		}
 	}()
-	if err := api.GetFile(info.URLPrivate, tmp); err != nil {
+	cappedTmp := &downloadCapWriter{dst: tmp, limit: capBytes}
+	if err := api.GetFile(info.URLPrivate, cappedTmp); err != nil {
 		_ = tmp.Close()
+		if errors.Is(err, errDownloadBodyTooLarge) {
+			return downloadBodyTooLargeError(capBytes)
+		}
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "download_failed", Detail: err.Error()}
 	}
 	if err := tmp.Close(); err != nil {
@@ -124,7 +163,11 @@ func runDownloadWithAPIWriter(api slackpkg.SlackAPI, fileID, outPath string, for
 			Detail: fmt.Sprintf("file size %d exceeds cap %d", info.Size, capBytes),
 		}
 	}
-	if err := api.GetFile(info.URLPrivate, stdout); err != nil {
+	cappedStdout := &downloadCapWriter{dst: stdout, limit: capBytes}
+	if err := api.GetFile(info.URLPrivate, cappedStdout); err != nil {
+		if errors.Is(err, errDownloadBodyTooLarge) {
+			return downloadBodyTooLargeError(capBytes)
+		}
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "download_failed", Detail: err.Error()}
 	}
 	return nil

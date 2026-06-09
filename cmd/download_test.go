@@ -58,6 +58,52 @@ func TestDownload_ToStdout(t *testing.T) {
 	}
 }
 
+func TestDownload_ToPathRejectsBodyThatExceedsCap(t *testing.T) {
+	api := &fakeSlackAPI{
+		getFileInfoFile: &goslack.File{ID: "F1", Name: "big.bin", Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileBytes:    []byte("0123456789"),
+	}
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "big.bin")
+
+	err := runDownloadWithAPI(api, "F1", out, false, 5, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error when downloaded body exceeds cap")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should mention 'exceeds', got: %v", err)
+	}
+	if _, statErr := os.Stat(out); !os.IsNotExist(statErr) {
+		t.Fatalf("final output should not be committed, stat err = %v", statErr)
+	}
+	matches, globErr := filepath.Glob(filepath.Join(tmp, ".big.bin.*.tmp"))
+	if globErr != nil {
+		t.Fatalf("Glob temp files: %v", globErr)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temp files should be removed after over-cap download, found %v", matches)
+	}
+}
+
+func TestDownload_ToStdoutRejectsBodyThatExceedsCap(t *testing.T) {
+	api := &fakeSlackAPI{
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileBytes:    []byte("0123456789"),
+	}
+	stdout := &bytes.Buffer{}
+
+	err := runDownloadWithAPIWriter(api, "F1", "-", false, 5, stdout, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error when downloaded body exceeds cap")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should mention 'exceeds', got: %v", err)
+	}
+	if stdout.Len() > 5 {
+		t.Errorf("stdout wrote %d bytes, want at most 5", stdout.Len())
+	}
+}
+
 func TestDownload_ExistingFileNoForce(t *testing.T) {
 	api := &fakeSlackAPI{
 		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "x"},
