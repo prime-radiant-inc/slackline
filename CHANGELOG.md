@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.4] - 2026-06-09
+
+### Fixed
+- `slackline download` now enforces the configured size cap on the actual downloaded byte stream, not just Slack `files.info` metadata.
+- Release builds now use Go 1.25.11, clearing reachable Go standard-library vulnerabilities reported against Go 1.25.10.
+
 ## [0.3.3] - 2026-06-02
 
 ### Fixed
