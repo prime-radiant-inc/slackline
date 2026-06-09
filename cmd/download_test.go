@@ -15,6 +15,7 @@ import (
 const (
 	testFileContent = "hello"
 	fixtureFileName = "a.txt"
+	fixtureFileURL  = "https://files.slack.com/F1"
 )
 
 func TestDownload_ToPath(t *testing.T) {
@@ -46,7 +47,7 @@ func TestDownload_ToPath(t *testing.T) {
 
 func TestDownload_ToStdout(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: fixtureFileURL},
 		getFileBytes:    []byte(testFileContent),
 	}
 	stdout := &bytes.Buffer{}
@@ -60,7 +61,7 @@ func TestDownload_ToStdout(t *testing.T) {
 
 func TestDownload_ToPathRejectsBodyThatExceedsCap(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: "big.bin", Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: "big.bin", Size: 5, URLPrivate: fixtureFileURL},
 		getFileBytes:    []byte("0123456789"),
 	}
 	tmp := t.TempDir()
@@ -87,7 +88,7 @@ func TestDownload_ToPathRejectsBodyThatExceedsCap(t *testing.T) {
 
 func TestDownload_ToStdoutRejectsBodyThatExceedsCap(t *testing.T) {
 	api := &fakeSlackAPI{
-		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: "https://files.slack.com/F1"},
+		getFileInfoFile: &goslack.File{ID: "F1", Name: fixtureFileName, Size: 5, URLPrivate: fixtureFileURL},
 		getFileBytes:    []byte("0123456789"),
 	}
 	stdout := &bytes.Buffer{}

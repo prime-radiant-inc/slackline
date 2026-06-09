@@ -21,7 +21,10 @@ var (
 	downloadForce bool
 )
 
-const defaultMaxDownloadBytes = int64(100 * 1024 * 1024)
+const (
+	defaultMaxDownloadBytes = int64(100 * 1024 * 1024)
+	errFileTooLarge         = "file_too_large"
+)
 
 var errDownloadBodyTooLarge = errors.New("download body exceeds size cap")
 
@@ -52,7 +55,7 @@ func (w *downloadCapWriter) Write(p []byte) (int, error) {
 func downloadBodyTooLargeError(capBytes int64) error {
 	return &errs.SlackError{
 		Code:   errs.Usage,
-		Err:    "file_too_large",
+		Err:    errFileTooLarge,
 		Detail: fmt.Sprintf("download body exceeds cap %d", capBytes),
 	}
 }
@@ -96,7 +99,7 @@ func runDownloadWithAPI(api slackpkg.SlackAPI, fileID, outPath string, force boo
 	if int64(info.Size) > capBytes {
 		return &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "file_too_large",
+			Err:    errFileTooLarge,
 			Detail: fmt.Sprintf("file size %d exceeds cap %d (override with SLACKLINE_MAX_DOWNLOAD_BYTES)", info.Size, capBytes),
 		}
 	}
@@ -159,7 +162,7 @@ func runDownloadWithAPIWriter(api slackpkg.SlackAPI, fileID, outPath string, for
 	if int64(info.Size) > capBytes {
 		return &errs.SlackError{
 			Code:   errs.Usage,
-			Err:    "file_too_large",
+			Err:    errFileTooLarge,
 			Detail: fmt.Sprintf("file size %d exceeds cap %d", info.Size, capBytes),
 		}
 	}
