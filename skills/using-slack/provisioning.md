@@ -14,7 +14,7 @@ The full agentic recipe is below.
 ```bash
 # 1. Provision the app via API.
 slackline provision my-bot-name > /tmp/prov.json
-# stdout: {"ok":true,"app_id":"A...","effective_name":"...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+# stdout: {"ok":true,"app_id":"A...","team_id":"T...","team_domain":"...","effective_name":"...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
 # Also check stderr: a `warning:` line appears if Slack mutated the app name
 # (e.g. stripped dashes — see PRI-1618). When that happens, the bot was
 # registered under `effective_name`, not the name you passed.
@@ -93,3 +93,7 @@ Bootstrap writes `~/.config/slackline/provision.json` with mode 0600.
 ## Migration note
 
 The old `slackline create` command has been removed. It returns a discoverable migration error pointing here. Update any scripts referencing `slackline create --init` / `slackline create --name X` to use `slackline provision bootstrap` and `slackline provision <name>` respectively, plus `slackline init` (with env vars) for the per-bot config.json write.
+
+---
+<!-- doc-audit:last-reviewed -->
+_Last reviewed: 2026-06-11 · commit `a8c5108` · verified against code (2 claims deferred to review)._

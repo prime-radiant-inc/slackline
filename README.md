@@ -1,6 +1,8 @@
 # slackline
 
-Give AI agents a Slack identity. Send messages, read channels, stream real-time events.
+slackline gives an AI agent its own Slack identity in a single binary, so it can send messages, read channels, and stream real-time events.
+
+**New to slackline? Start with the [overview](docs/BROCHURE.md).**
 
 One binary. One config file. One bot identity.
 
@@ -44,7 +46,7 @@ slackline init
 
 Prompts for a bot token (`xoxb-`) and app token (`xapp-`), validates against the workspace, writes `~/.config/slackline/config.json`.
 
-Interactive token prompts require a terminal so pasted secrets are not echoed. For scripts and CI, set `SLACKLINE_BOT_TOKEN` and `SLACKLINE_APP_TOKEN` instead of piping tokens into `slackline init`.
+Interactive token prompts require a terminal so pasted secrets are not echoed. For scripts and CI, set `SLACKLINE_BOT_TOKEN` and `SLACKLINE_APP_TOKEN` (and optionally `SLACKLINE_WORKSPACE_URL`) instead of piping tokens into `slackline init`.
 
 ### Verify
 
@@ -63,7 +65,7 @@ slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach 
 echo "text" | slackline send --channel <channel>
 ```
 
-`--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin. `--attach` may be repeated; message text is optional when at least one file is attached.
+`--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin. `--attach` may be repeated; message text is optional when at least one file is attached. Combined attachment size is capped at 100 MB; override with `SLACKLINE_MAX_UPLOAD_BYTES`.
 
 Text-only output:
 ```json
@@ -113,7 +115,7 @@ Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrup
 |------|--------|
 | (none) | `mention`, `dm`, `reaction`, and bot-parent `thread_reply` |
 | `--type <list>` | emit only the named types (`mention`, `dm`, `thread_reply`, `channel_message`, `reaction`); emit-time filter, does not widen subscription; `channel_message` requires `--all-messages` |
-| `--threads` | also emits `thread_reply` for threads the bot has participated in |
+| `--threads` | no-op since v0.2.1 (kept for backward compatibility); bot-parent `thread_reply` events are always emitted |
 | `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
 | `--include-bot-self` | do not filter out events from the bot's own user ID |
 
@@ -159,7 +161,7 @@ Default: table of channels the bot has joined. `--all`: all visible channels. `-
 
 ## Configuration
 
-**Config file:** `~/.config/slackline/config.json` (written by `init` or `create`, mode `0600`)
+**Config file:** `~/.config/slackline/config.json` (written by `init`, mode `0600`)
 
 **Override precedence (highest wins):**
 
@@ -215,7 +217,8 @@ slackline provision bootstrap
 
 # 2. Per bot: create the Slack app (no interaction, machine-readable JSON).
 slackline provision my-bot-name > /tmp/prov.json
-# stdout: {"ok":true,"app_id":"A...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+# stdout: {"ok":true,"app_id":"A...","team_id":"T...","team_domain":"...","effective_name":"...","install_url":"...","oauth_authorize_url":"...","oauth_page_url":"...","general_page_url":"..."}
+# effective_name carries the name Slack registered; it is present whenever the post-create name read-back succeeds, and a warning: line is written to stderr only if that name differs from the one you requested.
 
 INSTALL_URL=$(jq -r .oauth_authorize_url /tmp/prov.json)
 # (browser automation: navigate to $INSTALL_URL, allow, collect xoxb- and xapp- tokens)
@@ -324,3 +327,7 @@ make release VERSION=1.2.3    # tag + push (requires clean working tree)
 ```
 
 CI runs on push/PR to `main` (vet, test, golangci-lint). Release binaries for `darwin/arm64` and `linux/amd64` are built and attached to GitHub Releases automatically when a `v*` tag is pushed.
+
+---
+<!-- doc-audit:last-reviewed -->
+_Last reviewed: 2026-06-11 · commit `e4f4b21` · verified against code (2 claims deferred to review)._

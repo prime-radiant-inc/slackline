@@ -41,3 +41,7 @@ URL: `https://api.slack.com/apps/<app_id>/general`
 | "Generate" button (modal) | `button.c-button.c-button--primary.c-button--medium` |
 | Copy app token (xapp-) (post-generate modal) | `button.p-app_level_tokens_info__input_button` |
 | Dismiss "Got it!" tutorial popup if it appears | the button containing literal text "Got it!" |
+
+---
+<!-- doc-audit:last-reviewed -->
+_Last reviewed: 2026-06-11 · commit `a8c5108` · verified against code (16 claims deferred to review)._

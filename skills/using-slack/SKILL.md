@@ -127,3 +127,7 @@ Creating a brand-new bot is an admin flow (browser automation for Slack's instal
 - **Filtering `listen` for `mention` to catch file uploads.** Files come on `message`-family events with `--all-messages`, not on mentions.
 - **Passing emoji with colons.** Use the bare name.
 - **Matching `reaction_added`/`reaction_removed`.** It's one `reaction` event now — branch on `action`.
+
+---
+<!-- doc-audit:last-reviewed -->
+_Last reviewed: 2026-06-11 · commit `e4f4b21` · verified against code (2 claims deferred to review)._
