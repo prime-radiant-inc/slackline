@@ -24,6 +24,7 @@ const (
 	CodeInvalidToken   = "invalid_token"
 	CodeAuthTestFailed = "auth_test_failed"
 	CodeSaveFailed     = "save_failed"
+	CodeUsageError     = "usage_error"
 )
 
 // SlackError represents an error with an associated exit code.
