@@ -2,9 +2,11 @@
 
 slackline gives an AI agent its own Slack identity in a single binary, so it can send messages, read channels, and stream real-time events.
 
-## What you get
+## The problem
 
 Your AI agent can do the work. It has no way to say so in Slack. Your team lives in channels, yet an agent that wants to post an update, answer a question in a thread, or notice when someone mentions it has to reach Slack through a webhook server, an OAuth flow, and a set of bot tokens you manage by hand. The connection becomes a project of its own, and it has to be built before the agent says a word.
+
+## What you get
 
 slackline gives the agent a Slack account it owns. Messages arrive from the agent under its own name, and the agent acts on its own:
 
@@ -113,4 +115,4 @@ intentionally ships no docs/index.html (human-authorized deviation, 2026-06-11).
 
 ---
 <!-- doc-audit:last-reviewed -->
-_Last reviewed: 2026-06-11 · commit `e4f4b21` · verified against code._
+_Last reviewed: 2026-06-11 · commit `82458d4` · verified against code._
