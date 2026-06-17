@@ -16,6 +16,7 @@ var (
 	listenThreads        bool
 	listenAllMessages    bool
 	listenTypes          string
+	listenFormat         string
 )
 
 func init() {
@@ -23,13 +24,15 @@ func init() {
 	listenCmd.Flags().BoolVar(&listenThreads, "threads", false, "(no-op since v0.2.1) bot-parent thread replies are emitted by default; kept for backward compatibility")
 	listenCmd.Flags().BoolVar(&listenAllMessages, "all-messages", false, "firehose: emit every message in every channel the bot is in (implies --threads)")
 	listenCmd.Flags().StringVar(&listenTypes, "type", "", "comma-separated event types to emit: mention, dm, thread_reply, channel_message, reaction (default: all). Emit-time filter — does not widen subscription; channel_message requires --all-messages")
+	listenCmd.Flags().StringVar(&listenFormat, "format", outputFormatText, "output format: text or json")
 	rootCmd.AddCommand(listenCmd)
 }
 
 var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "Listen for real-time Slack events",
-	Long: `Connect via Socket Mode and stream events as JSONL to stdout, one event per line.
+	Long: `Connect via Socket Mode and stream events to stdout, one event per line.
+Default output is compact text; pass --format json for the JSONL event shape.
 
 Connection status goes to stderr: connecting/connected (websocket open),
 "ready" (subscribed — events will now flow), reconnecting, disconnected.
@@ -37,7 +40,14 @@ Wait for "ready" before expecting events.
 
 Use --type to emit only specific event types.
 
-Event JSON fields:
+Default text examples:
+  mention C123 U123 100.001 <@UBOT> hello
+  dm D123 U123 100.002 hello
+  thread_reply C123 U123 100.003 thread=100.001 parent=UBOT reply
+  reaction added C123 U123 item=100.001 thumbsup
+  file F123 report.pdf 12345 application/pdf Q4 Report
+
+JSON fields with --format json:
   mention, dm, thread_reply, channel_message:
     type, channel, user, text, ts, thread_ts (if a reply), parent_user_id, files
   reaction:
@@ -85,6 +95,10 @@ func runListen(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	outputFormat, err := parseOutputFormat(listenFormat)
+	if err != nil {
+		return err
+	}
 
 	cfg, _, err := loadConfig()
 	if err != nil {
@@ -112,6 +126,7 @@ func runListen(cmd *cobra.Command, args []string) error {
 		Threads:        listenThreads || listenAllMessages,
 		AllMessages:    listenAllMessages,
 		Types:          types,
+		OutputFormat:   outputFormat,
 	}, os.Stdout, os.Stderr)
 	return listener.Run()
 }

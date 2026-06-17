@@ -13,11 +13,11 @@ slackline gives the agent a Slack account it owns. Messages arrive from the agen
 - It posts to any channel or thread under its own name, and it can attach files. (`slackline send`)
 - It reads recent channel and thread history when it needs context. (`slackline read`)
 - It asks a question and waits for a person to reply, then returns the answer or reports a timeout. (`slackline ask`)
-- It streams mentions, direct messages, reactions, and thread replies as they happen, one JSON object per line. (`slackline listen`)
+- It streams mentions, direct messages, reactions, and thread replies as they happen, one compact event line at a time. (`slackline listen`)
 - It adds and removes emoji reactions. (`slackline react`)
 - It downloads files people share with it. (`slackline download`)
 
-Every command writes plain JSON, so the agent reads results directly and skips the usual parsing glue.
+Runtime output is short and agent-readable. `read` and `listen` default to compact text, while JSON remains available with `--format json` where a script needs exact fields.
 
 ## Using it
 
@@ -51,17 +51,18 @@ slackline send --channel '#ops' --message 'Deploy finished'
 slackline listen --type mention
 ```
 
-Each event is one JSON line on stdout. `listen` describes its own output:
+Each event is one line on stdout. `listen` describes its own output:
 
 ```
-Event JSON fields:
-  mention, dm, thread_reply, channel_message:
-    type, channel, user, text, ts, thread_ts (if a reply), parent_user_id, files
-  reaction:
-    type, action ("added"|"removed"), channel, user, emoji, item_ts (the reacted-to message)
+Default text examples:
+  mention C123 U123 100.001 <@UBOT> hello
+  dm D123 U123 100.002 hello
+  thread_reply C123 U123 100.003 thread=100.001 parent=UBOT reply
+  reaction added C123 U123 item=100.001 thumbsup
+  file F123 report.pdf 12345 application/pdf Q4 Report
 ```
 
-The exact JSON each command returns is documented in the README. The command examples above are real; a live message response carries values from your own workspace, so producing one needs a configured bot.
+The exact output each command returns is documented in the README. The command examples above are real; a live message response carries values from your own workspace, so producing one needs a configured bot.
 
 ## Running it
 
@@ -97,7 +98,7 @@ It is built for agents and automation. People who want a chat client for themsel
 
 <!--
 Where these claims come from (every capability cashes to a verified surface):
-- send / read / ask / listen / react / download, JSON output: README.md "Commands" + "Event reference"; cmd/{send,read,ask,listen,react,download}.go
+- send / read / ask / listen / react / download output: README.md "Commands" + "Event reference"; cmd/{send,read,ask,listen,react,download}.go
 - command catalog block: `slackline --help`, with cobra boilerplate (`completion`, `help`) and the deprecated `create` stub trimmed
 - listen event-fields block: real output of `slackline listen --help`; listen/events.go, listen/listener.go
 - one binary + one config.json, 0600, SLACKLINE_CONFIG for multiple identities: README.md "Configuration"; config/config.go, cmd/root.go

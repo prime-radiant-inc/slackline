@@ -55,3 +55,31 @@ func TestParseListenTypes(t *testing.T) {
 		}
 	})
 }
+
+func TestParseOutputFormat(t *testing.T) {
+	for _, raw := range []string{"", "text", "TEXT"} {
+		got, err := parseOutputFormat(raw)
+		if err != nil {
+			t.Fatalf("parseOutputFormat(%q): %v", raw, err)
+		}
+		if got != outputFormatText {
+			t.Fatalf("parseOutputFormat(%q) = %q, want %q", raw, got, outputFormatText)
+		}
+	}
+
+	got, err := parseOutputFormat("json")
+	if err != nil {
+		t.Fatalf("parseOutputFormat(json): %v", err)
+	}
+	if got != outputFormatJSON {
+		t.Fatalf("parseOutputFormat(json) = %q, want %q", got, outputFormatJSON)
+	}
+
+	t.Run("unknown format is usage error", func(t *testing.T) {
+		_, err := parseOutputFormat("xml")
+		var se *errs.SlackError
+		if !errors.As(err, &se) || se.Code != errs.Usage {
+			t.Fatalf("err = %v, want Usage SlackError", err)
+		}
+	})
+}

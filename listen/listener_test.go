@@ -31,11 +31,18 @@ const (
 func newTestListener() (*Listener, *bytes.Buffer) {
 	buf := &bytes.Buffer{}
 	l := &Listener{
-		botUserID: testBotUserID,
-		botID:     testBotID,
-		out:       buf,
-		status:    &bytes.Buffer{},
+		botUserID:    testBotUserID,
+		botID:        testBotID,
+		out:          buf,
+		status:       &bytes.Buffer{},
+		outputFormat: OutputFormatJSON,
 	}
+	return l, buf
+}
+
+func newTestTextListener() (*Listener, *bytes.Buffer) {
+	l, buf := newTestListener()
+	l.outputFormat = OutputFormatText
 	return l, buf
 }
 
@@ -59,7 +66,48 @@ func parseJSONL(t *testing.T, buf *bytes.Buffer) []map[string]interface{} {
 
 // --- emit tests ---
 
-func TestEmit_ValidJSON(t *testing.T) {
+func TestNewListener_DefaultOutputFormatText(t *testing.T) {
+	l := NewListener("", "", testBotUserID, testBotID, ListenerOptions{}, &bytes.Buffer{}, &bytes.Buffer{})
+
+	if l.outputFormat != OutputFormatText {
+		t.Fatalf("outputFormat = %q, want %q", l.outputFormat, OutputFormatText)
+	}
+}
+
+func TestEmit_Text(t *testing.T) {
+	l, buf := newTestTextListener()
+	l.emit(Event{
+		Type:    EventTypeMention,
+		Channel: testChannelID,
+		User:    "U456",
+		Text:    "hello",
+		TS:      testEventTS,
+	})
+
+	want := "mention C123 U456 100.001 hello\n"
+	if buf.String() != want {
+		t.Fatalf("text output = %q, want %q", buf.String(), want)
+	}
+}
+
+func TestEmit_TextReaction(t *testing.T) {
+	l, buf := newTestTextListener()
+	l.emit(Event{
+		Type:    EventTypeReaction,
+		Action:  ReactionActionAdded,
+		Channel: testChannelID,
+		User:    "U456",
+		Emoji:   testEmojiThumbsup,
+		ItemTS:  testItemTS,
+	})
+
+	want := "reaction added C123 U456 item=300.001 thumbsup\n"
+	if buf.String() != want {
+		t.Fatalf("text output = %q, want %q", buf.String(), want)
+	}
+}
+
+func TestEmit_JSONFormat(t *testing.T) {
 	l, buf := newTestListener()
 	l.emit(Event{
 		Type:    EventTypeMention,
@@ -675,10 +723,11 @@ func TestHandleEventsAPI_DefaultMode_TopLevelChannelMessageDropped(t *testing.T)
 func TestEmit_TypeFilter(t *testing.T) {
 	buf := &bytes.Buffer{}
 	l := &Listener{
-		botUserID: testBotUserID,
-		out:       buf,
-		status:    &bytes.Buffer{},
-		types:     map[string]bool{EventTypeMention: true},
+		botUserID:    testBotUserID,
+		out:          buf,
+		status:       &bytes.Buffer{},
+		types:        map[string]bool{EventTypeMention: true},
+		outputFormat: OutputFormatJSON,
 	}
 	l.emit(Event{Type: EventTypeMention, Channel: testChannelID})
 	l.emit(Event{Type: EventTypeReaction, Action: "added", Channel: testChannelID})

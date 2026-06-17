@@ -3,7 +3,9 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prime-radiant-inc/slackline/errs"
@@ -17,6 +19,12 @@ var (
 	readLimit   int
 	readThread  string
 	readSince   string
+	readFormat  string
+)
+
+const (
+	outputFormatText = "text"
+	outputFormatJSON = "json"
 )
 
 func init() {
@@ -24,6 +32,7 @@ func init() {
 	readCmd.Flags().IntVar(&readLimit, "limit", 20, "maximum number of messages to return")
 	readCmd.Flags().StringVar(&readThread, "thread", "", "thread timestamp to read replies from")
 	readCmd.Flags().StringVar(&readSince, "since", "", "only return messages after this ISO 8601 timestamp")
+	readCmd.Flags().StringVar(&readFormat, "format", outputFormatText, "output format: text or json")
 	_ = readCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(readCmd)
 }
@@ -31,11 +40,11 @@ func init() {
 var readCmd = &cobra.Command{
 	Use:   "read",
 	Short: "Read messages from a Slack channel",
-	Long:  "Read messages from a channel or thread. Output is JSONL (one message per line).",
+	Long:  "Read messages from a channel or thread. Default output is compact text; pass --format json for JSONL.",
 	RunE:  runRead,
 }
 
-// messageOutput is the JSONL output format for each message.
+// messageOutput is the structured form used by text and JSON message output.
 type messageOutput struct {
 	TS       string         `json:"ts"`
 	User     string         `json:"user"`
@@ -53,6 +62,11 @@ type fileMetaJSON struct {
 }
 
 func runRead(cmd *cobra.Command, args []string) error {
+	outputFormat, err := parseOutputFormat(readFormat)
+	if err != nil {
+		return err
+	}
+
 	cfg, _, err := loadConfig()
 	if err != nil {
 		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
@@ -90,8 +104,6 @@ func runRead(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "read_failed", Detail: err.Error()}
 	}
 
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetEscapeHTML(false)
 	for _, m := range messages {
 		threadTS := m.ThreadTimestamp
 		if threadTS == m.Timestamp {
@@ -114,11 +126,74 @@ func runRead(cmd *cobra.Command, args []string) error {
 			ThreadTS: threadTS,
 			Files:    files,
 		}
-		if err := enc.Encode(out); err != nil {
+		if err := writeMessageOutput(cmd.OutOrStdout(), outputFormat, out); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func parseOutputFormat(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", outputFormatText:
+		return outputFormatText, nil
+	case outputFormatJSON:
+		return outputFormatJSON, nil
+	default:
+		return "", &errs.SlackError{Code: errs.Usage, Err: "invalid_format", Detail: "valid --format values: text, json"}
+	}
+}
+
+func writeMessageOutput(w io.Writer, outputFormat string, out messageOutput) error {
+	if outputFormat == outputFormatJSON {
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(out)
+	}
+	if _, err := fmt.Fprint(w, formatMessageText(out)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func formatMessageText(out messageOutput) string {
+	var b strings.Builder
+	parts := []string{out.TS, out.User}
+	if out.ThreadTS != "" {
+		parts = append(parts, "thread="+out.ThreadTS)
+	}
+	b.WriteString(strings.Join(nonEmptyOutputParts(parts), " "))
+	if out.Text != "" {
+		b.WriteByte(' ')
+		b.WriteString(singleLineOutputText(out.Text))
+	}
+	b.WriteByte('\n')
+	for _, f := range out.Files {
+		fileParts := []string{"  file", f.ID, f.Name, strconv.Itoa(f.Size), f.Mimetype}
+		b.WriteString(strings.Join(nonEmptyOutputParts(fileParts), " "))
+		if f.Title != "" {
+			b.WriteByte(' ')
+			b.WriteString(singleLineOutputText(f.Title))
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func nonEmptyOutputParts(parts []string) []string {
+	out := parts[:0]
+	for _, part := range parts {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func singleLineOutputText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", `\n`)
 }
 
 // fetchHistory retrieves channel messages with pagination, returning up to

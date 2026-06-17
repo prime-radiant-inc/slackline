@@ -82,17 +82,18 @@ With `--attach`:
 ### read
 
 ```bash
-slackline read --channel <channel> [--limit 20] [--thread <ts>] [--since <RFC3339>]
+slackline read --channel <channel> [--limit 20] [--thread <ts>] [--since <RFC3339>] [--format text|json]
 ```
 
-Returns the most recent `--limit` messages as JSONL in **chronological order** (oldest first). For both channel and thread reads, `--limit` counts back from the newest message, so the latest reply is always included.
+Returns the most recent `--limit` messages in **chronological order** (oldest first). For both channel and thread reads, `--limit` counts back from the newest message, so the latest reply is always included. Default output is compact text:
 
-```json
-{"ts":"1234567890.123456","user":"U...","text":"hello"}
-{"ts":"1234567890.654321","user":"U...","text":"reply","thread_ts":"1234567890.123456"}
+```text
+1234567890.123456 U... hello
+1234567890.654321 U... thread=1234567890.123456 reply
+  file F... report.pdf 204800 application/pdf Q1 Report
 ```
 
-`thread_ts` is omitted when a message is not a thread reply.
+Newlines inside Slack message text are escaped as `\n` so each message starts on one line. Attached files are shown as indented `file` continuation lines. Use `--format json` for the previous JSONL shape.
 
 ### ask
 
@@ -106,10 +107,10 @@ Sends a message and polls the thread for replies from other users. Outputs repli
 ### listen
 
 ```bash
-slackline listen [--type mention,dm,...] [--threads] [--all-messages] [--include-bot-self]
+slackline listen [--type mention,dm,...] [--threads] [--all-messages] [--include-bot-self] [--format text|json]
 ```
 
-Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrupted. Requires both bot token and app token.
+Streams real-time events via Socket Mode to stdout. Default output is compact text; use `--format json` for JSONL. Runs until interrupted. Requires both bot token and app token.
 
 | Flag | Effect |
 |------|--------|
@@ -118,6 +119,7 @@ Streams real-time events via Socket Mode to stdout as JSONL. Runs until interrup
 | `--threads` | no-op since v0.2.1 (kept for backward compatibility); bot-parent `thread_reply` events are always emitted |
 | `--all-messages` | firehose: every message in every channel the bot is in (implies `--threads`) |
 | `--include-bot-self` | do not filter out events from the bot's own user ID |
+| `--format text|json` | default `text`; `json` emits the previous JSONL event objects |
 
 See [Event reference](#event-reference) for full event shapes. Status messages go to stderr as plain text: `connected` (websocket open), `ready` (subscribed — events will now flow; wait for this before expecting events), `reconnecting`, `disconnected`.
 
@@ -145,7 +147,7 @@ slackline download --file <file-id> --out -          # stream to stdout
 slackline download --file <file-id> --out <path> --force  # overwrite existing
 ```
 
-Download a Slack file by ID (from a `files` array on a listen event). File IDs start with `F`. Default size cap is 100 MB; override with `SLACKLINE_MAX_DOWNLOAD_BYTES`. Disk writes use atomic `.tmp` + rename. On disk-write success, a summary is written to stderr:
+Download a Slack file by ID (from a `file` line on a listen/read event, or from the `files` array in JSON format). File IDs start with `F`. Default size cap is 100 MB; override with `SLACKLINE_MAX_DOWNLOAD_BYTES`. Disk writes use atomic `.tmp` + rename. On disk-write success, a summary is written to stderr:
 
 ```json
 {"ok":true,"file":"F...","name":"report.pdf","mimetype":"application/pdf","size":12345,"path":"/tmp/report.pdf"}
@@ -238,11 +240,26 @@ Interactive bootstrap token prompts require a terminal so pasted secrets are not
 
 ## Event reference
 
-All `slackline listen` events are JSONL objects on stdout. Fields marked `?` are omitted when empty.
+By default, `slackline listen` writes one compact text event line per event. Message-family events may be followed by indented `file` continuation lines:
+
+```text
+mention C... U... 1234567890.123456 <@UBOT> hello
+dm D... U... 1234567890.123457 hello
+thread_reply C... U... 1234567890.654321 thread=1234567890.123456 parent=U... reply
+channel_message C... U... 1234567890.777777 hi
+reaction added C... U... item=1234567890.123456 thumbsup
+  file F... report.pdf 204800 application/pdf Q1 Report
+```
+
+Newlines inside Slack text are escaped as `\n`. With `--format json`, events are JSONL objects. Fields marked `?` below are omitted when empty.
 
 ### mention
 
 Emitted when the bot is @-mentioned in any channel it is in.
+
+```text
+mention C... U... ... <@UBOT> hello
+```
 
 ```json
 {"type":"mention","channel":"C...","user":"U...","text":"<@UBOT> hello","ts":"...","thread_ts":"?","files":[{"id":"F...","name":"file.txt","mimetype":"text/plain","size":1234,"title":"file.txt"}]}
@@ -252,6 +269,10 @@ Emitted when the bot is @-mentioned in any channel it is in.
 
 Emitted for direct messages to the bot.
 
+```text
+dm D... U... ... hello
+```
+
 ```json
 {"type":"dm","channel":"D...","user":"U...","text":"hello","ts":"...","thread_ts":"?","files":[...]}
 ```
@@ -259,6 +280,10 @@ Emitted for direct messages to the bot.
 ### thread_reply
 
 Emitted by default whenever someone replies in a thread the bot started (parent message authored by the bot). With `--all-messages`, also emitted for all thread replies in subscribed channels. `--threads` is accepted for backward compatibility but is currently a no-op — bot-parent thread replies are always emitted.
+
+```text
+thread_reply C... U... ... thread=... parent=U... reply
+```
 
 ```json
 {"type":"thread_reply","channel":"C...","user":"U...","text":"reply","ts":"...","thread_ts":"...","parent_user_id":"U...","files":[...]}
@@ -268,6 +293,10 @@ Emitted by default whenever someone replies in a thread the bot started (parent 
 
 Emitted only with `--all-messages`. Top-level non-thread messages.
 
+```text
+channel_message C... U... ... hi
+```
+
 ```json
 {"type":"channel_message","channel":"C...","user":"U...","text":"hi","ts":"...","thread_ts":"?","parent_user_id":"?","files":[...]}
 ```
@@ -276,13 +305,21 @@ Emitted only with `--all-messages`. Top-level non-thread messages.
 
 Emitted when a reaction is added or removed. `action` is `added` or `removed`.
 
+```text
+reaction added C... U... item=... thumbsup
+```
+
 ```json
 {"type":"reaction","action":"added","channel":"C...","user":"U...","emoji":"thumbsup","item_ts":"..."}
 ```
 
 ### File schema
 
-Files are present only when the sender attached files to the message. File objects contain no download URLs — use `slackline download --file ID --out PATH` to fetch content.
+Files are present only when the sender attached files to the message. File lines and JSON file objects contain no download URLs — use `slackline download --file ID --out PATH` to fetch content.
+
+```text
+  file F... report.pdf 204800 application/pdf Q1 Report
+```
 
 ```json
 {"id":"F...","name":"report.pdf","mimetype":"application/pdf","size":204800,"title":"Q1 Report"}

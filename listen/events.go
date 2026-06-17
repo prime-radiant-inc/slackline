@@ -1,8 +1,8 @@
 // Package listen defines event types for Slack events (mentions, DMs, reactions)
-// and their JSON serialization for JSONL output.
+// and their text/JSON serialization.
 package listen
 
-// Event "type" field values emitted in JSONL output. These are wire format —
+// Event "type" field values emitted in output. These are wire format —
 // downstream agents key on these strings, so changes are user-visible.
 const (
 	EventTypeMention        = "mention"
@@ -12,13 +12,19 @@ const (
 	EventTypeReaction       = "reaction"
 )
 
+// OutputFormat values select the wire format written by Listener.
+const (
+	OutputFormatText = "text"
+	OutputFormatJSON = "json"
+)
+
 // ReactionAction values for EventTypeReaction events.
 const (
 	ReactionActionAdded   = "added"
 	ReactionActionRemoved = "removed"
 )
 
-// Event represents a Slack event to be serialized as JSONL output.
+// Event represents a Slack event to be serialized for listener output.
 type Event struct {
 	Type         string     `json:"type"`
 	Action       string     `json:"action,omitempty"`

@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	goslack "github.com/slack-go/slack"
@@ -15,7 +17,7 @@ import (
 
 const messageSubtypeFileShare = "file_share"
 
-// Listener connects to Slack via Socket Mode and emits events as JSONL.
+// Listener connects to Slack via Socket Mode and emits events to stdout.
 type Listener struct {
 	api            *goslack.Client
 	sm             *socketmode.Client
@@ -27,6 +29,7 @@ type Listener struct {
 	threads        bool
 	allMessages    bool
 	types          map[string]bool
+	outputFormat   string
 }
 
 // ListenerOptions bundles per-mode flags for NewListener.
@@ -35,6 +38,7 @@ type ListenerOptions struct {
 	Threads        bool
 	AllMessages    bool
 	Types          map[string]bool
+	OutputFormat   string
 }
 
 // NewListener creates a Socket Mode listener.
@@ -43,6 +47,10 @@ type ListenerOptions struct {
 func NewListener(botToken, appToken, botUserID, botID string, opts ListenerOptions, out, status io.Writer) *Listener {
 	api := goslack.New(botToken, goslack.OptionAppLevelToken(appToken))
 	sm := socketmode.New(api)
+	outputFormat := opts.OutputFormat
+	if outputFormat == "" {
+		outputFormat = OutputFormatText
+	}
 	return &Listener{
 		api:            api,
 		sm:             sm,
@@ -54,6 +62,7 @@ func NewListener(botToken, appToken, botUserID, botID string, opts ListenerOptio
 		threads:        opts.Threads,
 		allMessages:    opts.AllMessages,
 		types:          opts.Types,
+		outputFormat:   outputFormat,
 	}
 }
 
@@ -67,7 +76,7 @@ func (l *Listener) shouldFilterSelf(user, botID string) bool {
 }
 
 // Run starts the Socket Mode connection and blocks until interrupted.
-// Events are written as JSONL to l.out. Status messages go to l.status.
+// Events are written to l.out. Status messages go to l.status.
 // Shuts down on SIGTERM, SIGINT, or when stdin is closed (parent process exits).
 func (l *Listener) Run() error {
 	stop := make(chan struct{}, 1)
@@ -252,11 +261,75 @@ func (l *Listener) emit(e Event) {
 	if e.ThreadTS == "" || e.ThreadTS == e.TS {
 		e.ThreadTS = ""
 	}
+	if l.outputFormat != OutputFormatJSON {
+		_, _ = fmt.Fprint(l.out, formatEventText(e))
+		return
+	}
 	data, err := json.Marshal(e)
 	if err != nil {
 		return // Should never happen with simple structs
 	}
 	_, _ = fmt.Fprintln(l.out, string(data))
+}
+
+func formatEventText(e Event) string {
+	var b strings.Builder
+	if e.Type == EventTypeReaction {
+		parts := []string{e.Type, e.Action, e.Channel, e.User}
+		if e.ItemTS != "" {
+			parts = append(parts, "item="+e.ItemTS)
+		}
+		if e.Emoji != "" {
+			parts = append(parts, e.Emoji)
+		}
+		b.WriteString(strings.Join(nonEmpty(parts), " "))
+		b.WriteByte('\n')
+		return b.String()
+	}
+
+	parts := []string{e.Type, e.Channel, e.User, e.TS}
+	if e.ThreadTS != "" {
+		parts = append(parts, "thread="+e.ThreadTS)
+	}
+	if e.ParentUserID != "" {
+		parts = append(parts, "parent="+e.ParentUserID)
+	}
+	b.WriteString(strings.Join(nonEmpty(parts), " "))
+	if e.Text != "" {
+		b.WriteByte(' ')
+		b.WriteString(singleLine(e.Text))
+	}
+	b.WriteByte('\n')
+	writeFileTextLines(&b, e.Files)
+	return b.String()
+}
+
+func writeFileTextLines(b *strings.Builder, files []FileMeta) {
+	for _, f := range files {
+		parts := []string{"  file", f.ID, f.Name, strconv.Itoa(f.Size), f.Mimetype}
+		b.WriteString(strings.Join(nonEmpty(parts), " "))
+		if f.Title != "" {
+			b.WriteByte(' ')
+			b.WriteString(singleLine(f.Title))
+		}
+		b.WriteByte('\n')
+	}
+}
+
+func nonEmpty(parts []string) []string {
+	out := parts[:0]
+	for _, part := range parts {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func singleLine(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", `\n`)
 }
 
 // convertMessageEventFiles extracts FileMeta from a MessageEvent. Files are

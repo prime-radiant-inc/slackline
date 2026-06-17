@@ -133,7 +133,7 @@ Exemplars (from this repo's own prose — the enforcement instrument):
 - "Give AI agents a Slack identity. Send messages, read channels, stream
   real-time events."
 - "The bot can only read, ask, and listen in channels it has joined."
-- "Status is on stderr; only stdout is JSONL."
+- "Status is on stderr; stdout is only events."
 - "App tokens can't be validated via the REST API."
 
 ---

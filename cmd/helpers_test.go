@@ -434,7 +434,54 @@ func TestFetchReplies_PaginatesToTail(t *testing.T) {
 	}
 }
 
-// --- messageOutput JSONL tests ---
+// --- messageOutput formatting tests ---
+
+func TestWriteMessageOutput_Text(t *testing.T) {
+	out := messageOutput{
+		TS:       fixtureMessageTS,
+		User:     fixtureUserID,
+		Text:     "reply\nwith detail",
+		ThreadTS: "100.000",
+		Files: []fileMetaJSON{{
+			ID:       "F123",
+			Name:     "report.pdf",
+			Mimetype: "application/pdf",
+			Size:     12345,
+			Title:    "Q4 Report",
+		}},
+	}
+	var buf bytes.Buffer
+
+	if err := writeMessageOutput(&buf, "text", out); err != nil {
+		t.Fatalf("writeMessageOutput failed: %v", err)
+	}
+
+	want := "123.456 U123 thread=100.000 reply\\nwith detail\n  file F123 report.pdf 12345 application/pdf Q4 Report\n"
+	if buf.String() != want {
+		t.Fatalf("text output = %q, want %q", buf.String(), want)
+	}
+}
+
+func TestWriteMessageOutput_JSON(t *testing.T) {
+	out := messageOutput{
+		TS:   fixtureMessageTS,
+		User: fixtureUserID,
+		Text: "hello world",
+	}
+	var buf bytes.Buffer
+
+	if err := writeMessageOutput(&buf, "json", out); err != nil {
+		t.Fatalf("writeMessageOutput failed: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if decoded["ts"] != fixtureMessageTS {
+		t.Errorf("ts = %v, want %q", decoded["ts"], fixtureMessageTS)
+	}
+}
 
 func TestMessageOutput_JSONL(t *testing.T) {
 	out := messageOutput{
