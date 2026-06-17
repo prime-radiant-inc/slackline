@@ -128,5 +128,15 @@ func runListen(cmd *cobra.Command, args []string) error {
 		Types:          types,
 		OutputFormat:   outputFormat,
 	}, os.Stdout, os.Stderr)
-	return listener.Run()
+	if err := listener.Run(); err != nil {
+		return classifyListenRunError(err)
+	}
+	return nil
+}
+
+func classifyListenRunError(err error) error {
+	if isAuthError(err) {
+		return errs.AuthError(err.Error())
+	}
+	return &errs.SlackError{Code: errs.SlackAPI, Err: "socket_mode_failed", Detail: err.Error()}
 }

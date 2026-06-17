@@ -110,7 +110,7 @@ Sends a message and polls the thread for replies from other users. Outputs repli
 slackline listen [--type mention,dm,...] [--threads] [--all-messages] [--include-bot-self] [--format text|json]
 ```
 
-Streams real-time events via Socket Mode to stdout. Default output is compact text; use `--format json` for JSONL. Runs until interrupted. Requires both bot token and app token.
+Streams real-time events via Socket Mode to stdout. Default output is compact text; use `--format json` for JSONL. Runs until interrupted. Requires both bot token and app token. Socket Mode connection failures exit non-zero with `{"error":"socket_mode_failed","detail":"..."}` on stderr.
 
 | Flag | Effect |
 |------|--------|

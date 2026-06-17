@@ -83,3 +83,30 @@ func TestParseOutputFormat(t *testing.T) {
 		}
 	})
 }
+
+func TestClassifyListenRunError(t *testing.T) {
+	err := classifyListenRunError(errors.New("websocket: bad handshake"))
+
+	var se *errs.SlackError
+	if !errors.As(err, &se) {
+		t.Fatalf("err = %T, want SlackError", err)
+	}
+	if se.Code != errs.SlackAPI {
+		t.Fatalf("code = %d, want %d", se.Code, errs.SlackAPI)
+	}
+	if se.Err != "socket_mode_failed" {
+		t.Fatalf("error = %q, want socket_mode_failed", se.Err)
+	}
+	if !strings.Contains(se.Detail, "websocket: bad handshake") {
+		t.Fatalf("detail = %q, want underlying error", se.Detail)
+	}
+
+	authErr := classifyListenRunError(errors.New("invalid_auth"))
+	var authSE *errs.SlackError
+	if !errors.As(authErr, &authSE) {
+		t.Fatalf("auth err = %T, want SlackError", authErr)
+	}
+	if authSE.Code != errs.Auth {
+		t.Fatalf("auth code = %d, want %d", authSE.Code, errs.Auth)
+	}
+}

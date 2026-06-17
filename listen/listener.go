@@ -2,6 +2,7 @@ package listen
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +31,8 @@ type Listener struct {
 	allMessages    bool
 	types          map[string]bool
 	outputFormat   string
+	events         <-chan socketmode.Event
+	runSocketMode  func() error
 }
 
 // ListenerOptions bundles per-mode flags for NewListener.
@@ -63,6 +66,8 @@ func NewListener(botToken, appToken, botUserID, botID string, opts ListenerOptio
 		allMessages:    opts.AllMessages,
 		types:          opts.Types,
 		outputFormat:   outputFormat,
+		events:         sm.Events,
+		runSocketMode:  sm.Run,
 	}
 }
 
@@ -77,45 +82,52 @@ func (l *Listener) shouldFilterSelf(user, botID string) bool {
 
 // Run starts the Socket Mode connection and blocks until interrupted.
 // Events are written to l.out. Status messages go to l.status.
-// Shuts down on SIGTERM, SIGINT, or when stdin is closed (parent process exits).
+// Shuts down on SIGTERM/SIGINT or returns when the Socket Mode runner fails.
 func (l *Listener) Run() error {
-	stop := make(chan struct{}, 1)
-
-	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-	go func() {
-		<-sigCh
-		close(stop)
-	}()
+	defer signal.Stop(sigCh)
 
-	// Monitor stdin for EOF — when parent process exits, stdin closes
-	go func() {
-		buf := make([]byte, 1)
-		for {
-			_, err := os.Stdin.Read(buf)
-			if err != nil { // EOF or error
-				close(stop)
-				return
+	return l.run(sigCh)
+}
+
+func (l *Listener) run(sigCh <-chan os.Signal) error {
+	events := l.events
+	if events == nil && l.sm != nil {
+		events = l.sm.Events
+	}
+	if events != nil {
+		go func() {
+			for evt := range events {
+				l.handleEvent(evt)
 			}
-		}
-	}()
+		}()
+	}
 
+	runSocketMode := l.runSocketMode
+	if runSocketMode == nil && l.sm != nil {
+		runSocketMode = l.sm.Run
+	}
+	if runSocketMode == nil {
+		return errors.New("socket mode client not configured")
+	}
+
+	runErr := make(chan error, 1)
 	go func() {
-		for evt := range l.sm.Events {
-			l.handleEvent(evt)
-		}
+		runErr <- runSocketMode()
 	}()
 
-	// Start Socket Mode in background goroutine.
-	// "connected" status is emitted by handleEvent on EventTypeConnected,
-	// not here — sm.Run() hasn't connected yet at this point.
-	go func() { _ = l.sm.Run() }()
-
-	// Block until shutdown signal
-	<-stop
-	_, _ = fmt.Fprintln(l.status, "disconnected")
-	return nil
+	select {
+	case <-sigCh:
+		_, _ = fmt.Fprintln(l.status, "disconnected")
+		return nil
+	case err := <-runErr:
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(l.status, "disconnected")
+		return nil
+	}
 }
 
 func (l *Listener) handleEvent(evt socketmode.Event) {
@@ -130,6 +142,9 @@ func (l *Listener) handleEvent(evt socketmode.Event) {
 
 	case socketmode.EventTypeConnectionError:
 		_, _ = fmt.Fprintln(l.status, "reconnecting")
+
+	case socketmode.EventTypeConnecting:
+		_, _ = fmt.Fprintln(l.status, "connecting")
 
 	case socketmode.EventTypeConnected:
 		_, _ = fmt.Fprintln(l.status, "connected")

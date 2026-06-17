@@ -3,6 +3,8 @@ package listen
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -756,5 +758,32 @@ func TestHandleEvent_HelloEmitsReady(t *testing.T) {
 	l.handleEvent(socketmode.Event{Type: socketmode.EventTypeHello})
 	if !strings.Contains(statusBuf.String(), "ready") {
 		t.Errorf("status = %q, want it to contain \"ready\"", statusBuf.String())
+	}
+}
+
+func TestHandleEvent_ConnectingEmitsConnecting(t *testing.T) {
+	statusBuf := &bytes.Buffer{}
+	l := &Listener{out: &bytes.Buffer{}, status: statusBuf}
+	l.handleEvent(socketmode.Event{Type: socketmode.EventTypeConnecting})
+	if !strings.Contains(statusBuf.String(), "connecting") {
+		t.Errorf("status = %q, want it to contain \"connecting\"", statusBuf.String())
+	}
+}
+
+func TestRunReturnsSocketModeError(t *testing.T) {
+	wantErr := errors.New("invalid_auth")
+	events := make(chan socketmode.Event)
+	defer close(events)
+	l := &Listener{
+		out:           &bytes.Buffer{},
+		status:        &bytes.Buffer{},
+		events:        events,
+		runSocketMode: func() error { return wantErr },
+	}
+
+	err := l.run(make(chan os.Signal))
+
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Run error = %v, want %v", err, wantErr)
 	}
 }
