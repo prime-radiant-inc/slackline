@@ -65,9 +65,18 @@ type fakeSlackAPI struct {
 	lastUploadFilesCall *uploadFilesCall
 	uploadFilesResp     []goslack.FileSummary
 	uploadFilesErr      error
+
+	authResp *goslack.AuthTestResponse
+	authErr  error
 }
 
 func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
+	if f.authErr != nil {
+		return nil, f.authErr
+	}
+	if f.authResp != nil {
+		return f.authResp, nil
+	}
 	return &goslack.AuthTestResponse{}, nil
 }
 

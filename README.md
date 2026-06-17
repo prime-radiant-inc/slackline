@@ -52,6 +52,7 @@ Interactive token prompts require a terminal so pasted secrets are not echoed. F
 
 ```bash
 slackline auth status
+slackline auth whoami
 ```
 
 Note: App Token shows `(configured)` not `(valid)` — app tokens can't be validated via the REST API. `(configured)` means the `xapp-` prefix is present.
@@ -201,7 +202,7 @@ All errors write to stderr as JSON:
 {"error":"not_in_channel","detail":"..."}
 ```
 
-To programmatically detect a broken bot token from `auth status` output, grep for `(invalid`.
+Use `slackline auth whoami` when you only need the validated bot/workspace identity.
 
 ## Provisioning a new bot
 

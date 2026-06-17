@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/prime-radiant-inc/slackline/errs"
-	"github.com/prime-radiant-inc/slackline/slack"
+	slackpkg "github.com/prime-radiant-inc/slackline/slack"
+	goslack "github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +22,17 @@ var authStatusCmd = &cobra.Command{
 	RunE:  runAuthStatus,
 }
 
+var authWhoamiCmd = &cobra.Command{
+	Use:   "whoami",
+	Short: "Show the authenticated bot identity",
+	RunE:  runAuthWhoami,
+}
+
+const unknownDisplay = "(unknown)"
+
 func init() {
 	authCmd.AddCommand(authStatusCmd)
+	authCmd.AddCommand(authWhoamiCmd)
 	rootCmd.AddCommand(authCmd)
 }
 
@@ -33,11 +44,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	// Validate bot token
 	botStatus := "(not configured)"
-	botName := "(unknown)"
-	workspace := "(unknown)"
+	botName := unknownDisplay
+	workspace := unknownDisplay
 	teamID := ""
 	if cfg.Bot.BotToken != "" {
-		client := slack.NewClient(cfg.Bot.BotToken)
+		client := slackpkg.NewClient(cfg.Bot.BotToken)
 		resp, authErr := client.AuthTest()
 		if authErr != nil {
 			botStatus = fmt.Sprintf("(invalid: %s)", authErr.Error())
@@ -79,6 +90,51 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Config:    %s\n", cfgPath)
 
 	return nil
+}
+
+func runAuthWhoami(cmd *cobra.Command, args []string) error {
+	cfg, _, err := loadConfig()
+	if err != nil {
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
+	}
+	if cfg.Bot.BotToken == "" {
+		return &errs.SlackError{Code: errs.Config, Err: errs.CodeNoToken, Detail: "No bot token configured. Run 'slackline init' to set up."}
+	}
+	return runAuthWhoamiWithAPI(slackpkg.NewClient(cfg.Bot.BotToken), cmd.OutOrStdout())
+}
+
+func runAuthWhoamiWithAPI(api slackpkg.SlackAPI, out io.Writer) error {
+	resp, err := api.AuthTest()
+	if err != nil {
+		if isAuthError(err) {
+			return errs.AuthError(err.Error())
+		}
+		return &errs.SlackError{Code: errs.SlackAPI, Err: errs.CodeAuthTestFailed, Detail: err.Error()}
+	}
+	writeAuthIdentity(out, resp)
+	return nil
+}
+
+func writeAuthIdentity(out io.Writer, resp *goslack.AuthTestResponse) {
+	_, _ = fmt.Fprintf(out, "Bot:       %s\n", authDisplay(resp.User, resp.UserID))
+	_, _ = fmt.Fprintf(out, "Bot ID:    %s\n", emptyUnknown(resp.BotID))
+	_, _ = fmt.Fprintf(out, "Workspace: %s\n", authDisplay(resp.Team, resp.TeamID))
+	_, _ = fmt.Fprintf(out, "URL:       %s\n", emptyUnknown(resp.URL))
+}
+
+func authDisplay(name, id string) string {
+	name = emptyUnknown(name)
+	if id == "" {
+		return name
+	}
+	return fmt.Sprintf("%s (%s)", name, id)
+}
+
+func emptyUnknown(value string) string {
+	if value == "" {
+		return unknownDisplay
+	}
+	return value
 }
 
 // maskToken redacts a token for display, preserving enough to identify it.
