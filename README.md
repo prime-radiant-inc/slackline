@@ -115,13 +115,13 @@ https://example.slack.com/archives/C.../p1234567890123456
 ### ask
 
 ```bash
-slackline ask --channel <channel> [--message <text>] [--timeout 300] [--poll 10] [--no-link-names] [--format text|json]
+slackline ask --channel <channel> [--message <text>] [--timeout 300] [--poll 10] [--no-link-names] [--no-resolve-names] [--format text|json]
 echo "text" | slackline ask --channel <channel>
 ```
 
 Sends a message and polls the thread for replies from other users. Outputs replies as compact text when received (`<ts> <user> <text>`), or JSONL with `--format json`. Exits 0 on reply, **exits 5 on timeout** (no stdout output on timeout — error goes to stderr).
 
-Like `send`, the outgoing message linkifies `@handle` mentions to real Slack mentions by default (so you can ask a specific person and they're notified); `--no-link-names` opts out. See [send](#send) for the matching rules.
+`ask` composes `send` and `read`: the outgoing message linkifies `@handle` mentions by default (`--no-link-names` opts out; see [send](#send) for matching rules), and the reply output resolves user IDs to handles the same way `read` does (`--no-resolve-names` opts out; see [read](#read)).
 
 ### listen
 

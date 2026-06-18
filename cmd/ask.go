@@ -14,12 +14,13 @@ import (
 )
 
 var (
-	askChannel     string
-	askMessage     string
-	askTimeout     int
-	askPoll        int
-	askFormat      string
-	askNoLinkNames bool
+	askChannel        string
+	askMessage        string
+	askTimeout        int
+	askPoll           int
+	askFormat         string
+	askNoLinkNames    bool
+	askNoResolveNames bool
 )
 
 var askCmd = &cobra.Command{
@@ -36,6 +37,7 @@ func init() {
 	askCmd.Flags().IntVar(&askPoll, "poll", 10, "seconds between poll attempts")
 	askCmd.Flags().StringVar(&askFormat, "format", outputFormatText, "output format: text or json")
 	askCmd.Flags().BoolVar(&askNoLinkNames, "no-link-names", false, "do not linkify @handle mentions; post them as literal text")
+	askCmd.Flags().BoolVar(&askNoResolveNames, "no-resolve-names", false, "do not resolve user IDs to handles in reply output (skips a users.list lookup)")
 	_ = askCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(askCmd)
 }
@@ -96,17 +98,24 @@ func runAsk(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return runAskWithAPIFormat(api, channelID, authResp.UserID, text, askTimeout, askPoll, outputFormat, time.Now, time.Sleep, cmd.OutOrStdout())
+
+	var dir *slackpkg.UserDirectory
+	if !askNoResolveNames {
+		dir = slackpkg.NewUserDirectory(api)
+	}
+	return runAskWithAPIFormat(api, channelID, authResp.UserID, text, askTimeout, askPoll, outputFormat, time.Now, time.Sleep, cmd.OutOrStdout(), dir, cmd.OutOrStderr())
 }
 
 // runAskWithAPI posts text to channelID, then polls the thread until a reply
 // from another user arrives (exit 0) or the deadline passes (Timeout). now/sleep
 // are injected for deterministic tests; production passes time.Now/time.Sleep.
 func runAskWithAPI(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, now func() time.Time, sleep func(time.Duration), out io.Writer) error {
-	return runAskWithAPIFormat(api, channelID, botUserID, text, timeoutSec, pollSec, outputFormatText, now, sleep, out)
+	return runAskWithAPIFormat(api, channelID, botUserID, text, timeoutSec, pollSec, outputFormatText, now, sleep, out, nil, io.Discard)
 }
 
-func runAskWithAPIFormat(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, outputFormat string, now func() time.Time, sleep func(time.Duration), out io.Writer) error {
+// dir resolves user IDs to handles in reply output (nil disables it); warnOut
+// receives a warning if that lookup fails, in which case raw IDs are kept.
+func runAskWithAPIFormat(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, outputFormat string, now func() time.Time, sleep func(time.Duration), out io.Writer, dir *slackpkg.UserDirectory, warnOut io.Writer) error {
 	_, ts, err := api.PostMessage(channelID, goslack.MsgOptionText(text, false))
 	if err != nil {
 		if isAuthError(err) {
@@ -149,8 +158,13 @@ func runAskWithAPIFormat(api slackpkg.SlackAPI, channelID, botUserID, text strin
 		}
 
 		if len(replies) > 0 {
-			for _, m := range replies {
-				if err := writeAskMessage(out, outputFormat, m); err != nil {
+			outputs := make([]messageOutput, len(replies))
+			for i, m := range replies {
+				outputs[i] = askMessageOutput(m)
+			}
+			outputs = resolveNames(dir, outputs, warnOut)
+			for _, o := range outputs {
+				if err := writeMessageOutput(out, outputFormat, o); err != nil {
 					return err
 				}
 			}
@@ -171,17 +185,23 @@ func isAuthError(err error) bool {
 		strings.Contains(msg, "account_inactive")
 }
 
-func writeAskMessage(w io.Writer, outputFormat string, m goslack.Message) error {
+// askMessageOutput converts a reply into the shared messageOutput shape,
+// blanking thread_ts on the parent message.
+func askMessageOutput(m goslack.Message) messageOutput {
 	threadTS := m.ThreadTimestamp
 	if threadTS == m.Timestamp {
 		threadTS = ""
 	}
-	return writeMessageOutput(w, outputFormat, messageOutput{
+	return messageOutput{
 		TS:       m.Timestamp,
 		User:     m.User,
 		Text:     m.Text,
 		ThreadTS: threadTS,
-	})
+	}
+}
+
+func writeAskMessage(w io.Writer, outputFormat string, m goslack.Message) error {
+	return writeMessageOutput(w, outputFormat, askMessageOutput(m))
 }
 
 // writeMessage writes a message as a compact JSONL line to w.
