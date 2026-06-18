@@ -1,6 +1,6 @@
 {
   "name": "slackline",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Give AI agents a Slack identity. CLI for sending messages, reading channels, listening for events, with reactions and file attachments.",
   "author": {
     "name": "slackline contributors"

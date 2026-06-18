@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-06-18
 
 ### Added
 - `slackline users [--match <query>]` lists workspace users and resolves a handle, display name, real name, or ID to a `U...` user ID (the path needed to mention someone).
