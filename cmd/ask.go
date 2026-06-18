@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	askChannel string
-	askMessage string
-	askTimeout int
-	askPoll    int
-	askFormat  string
+	askChannel     string
+	askMessage     string
+	askTimeout     int
+	askPoll        int
+	askFormat      string
+	askNoLinkNames bool
 )
 
 var askCmd = &cobra.Command{
@@ -34,6 +35,7 @@ func init() {
 	askCmd.Flags().IntVar(&askTimeout, "timeout", 300, "seconds to wait for a reply before timing out")
 	askCmd.Flags().IntVar(&askPoll, "poll", 10, "seconds between poll attempts")
 	askCmd.Flags().StringVar(&askFormat, "format", outputFormatText, "output format: text or json")
+	askCmd.Flags().BoolVar(&askNoLinkNames, "no-link-names", false, "do not linkify @handle mentions; post them as literal text")
 	_ = askCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(askCmd)
 }
@@ -86,6 +88,11 @@ func runAsk(cmd *cobra.Command, args []string) error {
 	}
 
 	outputFormat, err := parseOutputFormat(askFormat)
+	if err != nil {
+		return err
+	}
+
+	text, err = linkifyMessage(api, text, askNoLinkNames, cmd.OutOrStderr())
 	if err != nil {
 		return err
 	}
