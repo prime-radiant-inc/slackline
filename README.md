@@ -62,18 +62,20 @@ slackline auth whoami
 ### send
 
 ```bash
-slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach <path>] ...
+slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach <path>] ... [--format text|json]
 echo "text" | slackline send --channel <channel>
 ```
 
 `--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin. `--attach` may be repeated; message text is optional when at least one file is attached. Combined attachment size is capped at 100 MB; override with `SLACKLINE_MAX_UPLOAD_BYTES`.
 
-Text-only output:
-```json
-{"ok":true,"channel":"C...","ts":"1234567890.123456"}
+Default output is compact text:
+
+```text
+C... 1234567890.123456
 ```
 
-With `--attach`:
+Use `--format json` for the structured shape:
+
 ```json
 {"ok":true,"channel":"C...","thread_ts":"...","files":[{"id":"F...","title":"file.txt"}]}
 ```
@@ -111,11 +113,11 @@ https://example.slack.com/archives/C.../p1234567890123456
 ### ask
 
 ```bash
-slackline ask --channel <channel> [--message <text>] [--timeout 300] [--poll 10]
+slackline ask --channel <channel> [--message <text>] [--timeout 300] [--poll 10] [--format text|json]
 echo "text" | slackline ask --channel <channel>
 ```
 
-Sends a message and polls the thread for replies from other users. Outputs replies as JSONL when received. Exits 0 on reply, **exits 5 on timeout** (no stdout output on timeout — error goes to stderr).
+Sends a message and polls the thread for replies from other users. Outputs replies as compact text when received (`<ts> <user> <text>`), or JSONL with `--format json`. Exits 0 on reply, **exits 5 on timeout** (no stdout output on timeout — error goes to stderr).
 
 ### listen
 
@@ -123,7 +125,7 @@ Sends a message and polls the thread for replies from other users. Outputs repli
 slackline listen [--type mention,dm,...] [--threads] [--all-messages] [--include-bot-self] [--format text|json]
 ```
 
-Streams real-time events via Socket Mode to stdout. Default output is compact text; use `--format json` for JSONL. Runs until interrupted. Requires both bot token and app token. Socket Mode connection failures exit non-zero with `{"error":"socket_mode_failed","detail":"..."}` on stderr.
+Streams real-time events via Socket Mode to stdout. Default output is compact text; use `--format json` for JSONL. Runs until interrupted. Requires both bot token and app token. Socket Mode connection failures exit non-zero with `error: socket_mode_failed: ...` on stderr.
 
 | Flag | Effect |
 |------|--------|
@@ -139,11 +141,13 @@ See [Event reference](#event-reference) for full event shapes. Status messages g
 ### react
 
 ```bash
-slackline react add    --channel <channel> --ts <ts> --emoji <name>
-slackline react remove --channel <channel> --ts <ts> --emoji <name>
+slackline react add    --channel <channel> --ts <ts> --emoji <name> [--format text|json]
+slackline react remove --channel <channel> --ts <ts> --emoji <name> [--format text|json]
 ```
 
-Add or remove an emoji reaction on a message. Idempotent: `already_reacted` (on add) and `no_reaction` (on remove) are treated as success.
+Add or remove an emoji reaction on a message. Default stdout is empty; exit 0 is the confirmation. Idempotent: `already_reacted` (on add) and `no_reaction` (on remove) are treated as success.
+
+Use `--format json` for a structured confirmation:
 
 ```json
 {"ok":true,"channel":"C...","ts":"...","emoji":"thumbsup","action":"added"}
@@ -155,12 +159,18 @@ Add or remove an emoji reaction on a message. Idempotent: `already_reacted` (on 
 ### download
 
 ```bash
-slackline download --file <file-id> --out <path>
+slackline download --file <file-id> --out <path> [--format text|json]
 slackline download --file <file-id> --out -          # stream to stdout
 slackline download --file <file-id> --out <path> --force  # overwrite existing
 ```
 
 Download a Slack file by ID (from a `file` line on a listen/read event, or from the `files` array in JSON format). File IDs start with `F`. Default size cap is 100 MB; override with `SLACKLINE_MAX_DOWNLOAD_BYTES`. Disk writes use atomic `.tmp` + rename. On disk-write success, a summary is written to stderr:
+
+```text
+downloaded F... /tmp/report.pdf 12345
+```
+
+Use `--format json` for the structured summary:
 
 ```json
 {"ok":true,"file":"F...","name":"report.pdf","mimetype":"application/pdf","size":12345,"path":"/tmp/report.pdf"}
@@ -169,10 +179,10 @@ Download a Slack file by ID (from a `file` line on a listen/read event, or from 
 ### channels
 
 ```bash
-slackline channels [--all] [--json]
+slackline channels [--all] [--format text|json]
 ```
 
-Default: table of channels the bot has joined. `--all`: all visible channels. `--json`: JSON array with `id`, `name`, `topic`, `purpose`.
+Default: table of channels the bot has joined. `--all`: all visible channels. `--format json`: JSON array with `id`, `name`, `topic`, `purpose`.
 
 ## Configuration
 
@@ -208,10 +218,10 @@ SLACKLINE_CONFIG=~/.config/slackline/other-bot.json slackline send --channel '#o
 | 4 | Usage error (bad flags, missing required input) |
 | 5 | Timeout (`ask` received no reply) |
 
-All errors write to stderr as JSON:
+All errors write to stderr as compact text:
 
-```json
-{"error":"not_in_channel","detail":"..."}
+```text
+error: not_in_channel: ...
 ```
 
 Use `slackline auth whoami` when you only need the validated bot/workspace identity.

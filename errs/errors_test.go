@@ -2,22 +2,15 @@ package errs
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 )
 
-func TestWriteError_JSONFormat(t *testing.T) {
+func TestWriteError_TextFormat(t *testing.T) {
 	var buf bytes.Buffer
 	WriteError(&buf, "channel_not_found", "Could not find channel #nonexistent")
-	var got map[string]string
-	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-		t.Fatalf("output is not valid JSON: %v\nbody: %s", err, buf.String())
-	}
-	if got["error"] != "channel_not_found" {
-		t.Errorf("error = %q, want %q", got["error"], "channel_not_found")
-	}
-	if got["detail"] != "Could not find channel #nonexistent" {
-		t.Errorf("detail = %q, want %q", got["detail"], "Could not find channel #nonexistent")
+	want := "error: channel_not_found: Could not find channel #nonexistent\n"
+	if buf.String() != want {
+		t.Fatalf("output = %q, want %q", buf.String(), want)
 	}
 }
 

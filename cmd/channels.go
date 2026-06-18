@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"text/tabwriter"
 
 	"github.com/prime-radiant-inc/slackline/errs"
@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	channelsAll  bool
-	channelsJSON bool
+	channelsAll    bool
+	channelsFormat string
 )
 
 var channelsCmd = &cobra.Command{
@@ -65,10 +65,11 @@ var channelsCmd = &cobra.Command{
 			all = filtered
 		}
 
-		if channelsJSON {
-			return writeChannelsJSON(all)
+		outputFormat, err := parseOutputFormat(channelsFormat)
+		if err != nil {
+			return err
 		}
-		return writeChannelsTable(all)
+		return writeChannelsOutput(cmd.OutOrStdout(), outputFormat, all)
 	},
 }
 
@@ -79,7 +80,14 @@ type channelJSON struct {
 	Purpose string `json:"purpose"`
 }
 
-func writeChannelsJSON(channels []slack.Channel) error {
+func writeChannelsOutput(w io.Writer, outputFormat string, channels []slack.Channel) error {
+	if outputFormat == outputFormatJSON {
+		return writeChannelsJSON(w, channels)
+	}
+	return writeChannelsTable(w, channels)
+}
+
+func writeChannelsJSON(w io.Writer, channels []slack.Channel) error {
 	out := make([]channelJSON, len(channels))
 	for i, ch := range channels {
 		out[i] = channelJSON{
@@ -89,13 +97,13 @@ func writeChannelsJSON(channels []slack.Channel) error {
 			Purpose: ch.Purpose.Value,
 		}
 	}
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
 }
 
-func writeChannelsTable(channels []slack.Channel) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+func writeChannelsTable(out io.Writer, channels []slack.Channel) error {
+	w := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "ID\tNAME\tPURPOSE")
 	for _, ch := range channels {
 		purpose := ch.Purpose.Value
@@ -109,6 +117,6 @@ func writeChannelsTable(channels []slack.Channel) error {
 
 func init() {
 	channelsCmd.Flags().BoolVar(&channelsAll, "all", false, "Show all channels, not just ones the bot has joined")
-	channelsCmd.Flags().BoolVar(&channelsJSON, "json", false, "Output as JSON array")
+	channelsCmd.Flags().StringVar(&channelsFormat, "format", outputFormatText, "output format: text or json")
 	rootCmd.AddCommand(channelsCmd)
 }

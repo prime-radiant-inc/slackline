@@ -33,6 +33,23 @@ func TestDownload_ToPath(t *testing.T) {
 	if string(got) != testFileContent {
 		t.Errorf("file contents = %q, want %q", got, testFileContent)
 	}
+	want := "downloaded F123 " + out + " 5\n"
+	if stderr.String() != want {
+		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
+	}
+}
+
+func TestDownload_ToPath_JSONFormat(t *testing.T) {
+	api := &fakeSlackAPI{
+		getFileInfoFile: &goslack.File{ID: "F123", Name: "report.pdf", Mimetype: "application/pdf", Size: 5, URLPrivate: "https://files.slack.com/F123"},
+		getFileBytes:    []byte(testFileContent),
+	}
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "report.pdf")
+	stderr := &bytes.Buffer{}
+	if err := runDownloadWithAPIFormat(api, "F123", out, false, 100*1024*1024, outputFormatJSON, stderr); err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
 	var summary map[string]interface{}
 	if err := json.Unmarshal(stderr.Bytes(), &summary); err != nil {
 		t.Fatalf("stderr not valid JSON: %v\n%s", err, stderr.String())

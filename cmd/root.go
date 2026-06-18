@@ -25,7 +25,7 @@ func init() {
 }
 
 // configureUsageErrors makes cobra's own usage failures surface as slackline's
-// JSON error envelope with exit code errs.Usage, instead of cobra's default
+// compact error line with exit code errs.Usage, instead of cobra's default
 // human-readable usage text. Flag-parse failures (unknown or malformed flags)
 // are converted here via SetFlagErrorFunc; the remaining usage failures
 // (missing required flag, unknown subcommand, wrong argument count) come back
@@ -37,7 +37,7 @@ func configureUsageErrors(c *cobra.Command) {
 }
 
 // usageFlagError wraps a cobra flag-parse error as a usage SlackError so it maps
-// to exit code errs.Usage with the standard JSON envelope.
+// to exit code errs.Usage with the standard error line.
 func usageFlagError(_ *cobra.Command, err error) error {
 	return &errs.SlackError{Code: errs.Usage, Err: errs.CodeUsageError, Detail: err.Error()}
 }

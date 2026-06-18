@@ -40,7 +40,23 @@ func TestRunAskWithAPI_Reply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !bytes.Contains(out.Bytes(), []byte("here you go")) {
-		t.Fatalf("reply not written to out: %q", out.String())
+	want := "200.1 U_other here you go\n"
+	if out.String() != want {
+		t.Fatalf("reply output = %q, want %q", out.String(), want)
+	}
+}
+
+func TestRunAskWithAPI_JSONFormat(t *testing.T) {
+	api := &fakeSlackAPI{
+		repliesMessages: []goslack.Message{makeMessage("200.1", "U_other", "here you go")},
+	}
+	base := time.Unix(1_000_000, 0)
+	out := &bytes.Buffer{}
+	err := runAskWithAPIFormat(api, "C123", "UBOT", "hi", 300, 10, outputFormatJSON, func() time.Time { return base }, func(time.Duration) {}, out)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bytes.Contains(out.Bytes(), []byte(`"text":"here you go"`)) {
+		t.Fatalf("JSON reply not written to out: %q", out.String())
 	}
 }

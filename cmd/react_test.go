@@ -28,6 +28,19 @@ func TestReactAdd_Success(t *testing.T) {
 	if got.Item.Channel != fixtureChannelID || got.Item.Timestamp != "100.001" {
 		t.Errorf("item = %+v", got.Item)
 	}
+	if stdout.Len() != 0 {
+		t.Fatalf("default text output should be empty, got %q", stdout.String())
+	}
+}
+
+func TestReactAdd_JSONFormat(t *testing.T) {
+	api := &fakeSlackAPI{}
+	stdout := &bytes.Buffer{}
+
+	err := runReactAddWithAPIFormat(api, fixtureChannelID, "100.001", fixtureEmojiThumb, outputFormatJSON, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	var out map[string]interface{}
 	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
@@ -55,7 +68,7 @@ func TestReactAdd_StripsColons(t *testing.T) {
 func TestReactAdd_AlreadyReactedIsIdempotent(t *testing.T) {
 	api := &fakeSlackAPI{addReactionErr: errors.New("already_reacted")}
 	stdout := &bytes.Buffer{}
-	err := runReactAddWithAPI(api, fixtureChannelID, "100", fixtureEmojiThumb, stdout)
+	err := runReactAddWithAPIFormat(api, fixtureChannelID, "100", fixtureEmojiThumb, outputFormatJSON, stdout)
 	if err != nil {
 		t.Fatalf("expected no error for already_reacted, got: %v", err)
 	}
@@ -93,6 +106,18 @@ func TestReactRemove_Success(t *testing.T) {
 	if api.reactionsRemoved[0] != (capturedReaction{Name: fixtureEmojiThumb, Item: goslack.ItemRef{Channel: fixtureChannelID, Timestamp: "100.001"}}) {
 		t.Errorf("captured: %+v", api.reactionsRemoved[0])
 	}
+	if stdout.Len() != 0 {
+		t.Fatalf("default text output should be empty, got %q", stdout.String())
+	}
+}
+
+func TestReactRemove_JSONFormat(t *testing.T) {
+	api := &fakeSlackAPI{}
+	stdout := &bytes.Buffer{}
+	err := runReactRemoveWithAPIFormat(api, fixtureChannelID, "100.001", fixtureEmojiThumb, outputFormatJSON, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	var out map[string]interface{}
 	_ = json.Unmarshal(stdout.Bytes(), &out)
 	if out["action"] != "removed" {
@@ -103,7 +128,7 @@ func TestReactRemove_Success(t *testing.T) {
 func TestReactRemove_NoReactionIsIdempotent(t *testing.T) {
 	api := &fakeSlackAPI{removeReactionErr: errors.New("no_reaction")}
 	stdout := &bytes.Buffer{}
-	err := runReactRemoveWithAPI(api, fixtureChannelID, "100", fixtureEmojiThumb, stdout)
+	err := runReactRemoveWithAPIFormat(api, fixtureChannelID, "100", fixtureEmojiThumb, outputFormatJSON, stdout)
 	if err != nil {
 		t.Fatalf("expected no error for no_reaction, got: %v", err)
 	}

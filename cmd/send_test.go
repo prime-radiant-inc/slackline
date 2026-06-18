@@ -12,7 +12,7 @@ import (
 )
 
 func TestSend_TextOnlyUsesPostMessage(t *testing.T) {
-	api := &fakeSlackAPI{}
+	api := &fakeSlackAPI{postMessageChannel: fixtureChannelID, postMessageTS: fixtureMessageTS}
 	stdout := &bytes.Buffer{}
 	err := runSendWithAPI(api, fixtureChannelID, "hello", "", nil, stdout)
 	if err != nil {
@@ -20,6 +20,29 @@ func TestSend_TextOnlyUsesPostMessage(t *testing.T) {
 	}
 	if api.lastUploadFilesCall != nil {
 		t.Error("text-only send should NOT use UploadFiles")
+	}
+	if stdout.String() != fixtureChannelID+" "+fixtureMessageTS+"\n" {
+		t.Fatalf("text output = %q", stdout.String())
+	}
+}
+
+func TestSend_JSONFormat(t *testing.T) {
+	api := &fakeSlackAPI{postMessageChannel: fixtureChannelID, postMessageTS: fixtureMessageTS}
+	stdout := &bytes.Buffer{}
+	err := runSendWithAPIFormat(api, fixtureChannelID, "hello", "", nil, outputFormatJSON, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if out["channel"] != fixtureChannelID {
+		t.Errorf("channel = %v", out["channel"])
+	}
+	if out["ts"] != fixtureMessageTS {
+		t.Errorf("ts = %v", out["ts"])
 	}
 }
 
@@ -32,7 +55,7 @@ func TestSend_WithSingleAttach(t *testing.T) {
 	_ = os.WriteFile(a, []byte("abc"), 0o600)
 
 	stdout := &bytes.Buffer{}
-	err := runSendWithAPI(api, fixtureChannelID, "see this", "", []string{a}, stdout)
+	err := runSendWithAPIFormat(api, fixtureChannelID, "see this", "", []string{a}, outputFormatJSON, stdout)
 	if err != nil {
 		t.Fatalf("send failed: %v", err)
 	}
@@ -51,6 +74,34 @@ func TestSend_WithSingleAttach(t *testing.T) {
 	files, _ := out["files"].([]interface{})
 	if len(files) != 1 {
 		t.Errorf("output files = %+v", files)
+	}
+}
+
+func TestSend_WithAttachTextOutputIncludesShareTimestamp(t *testing.T) {
+	api := &fakeSlackAPI{
+		uploadFilesResp: []goslack.FileSummary{{ID: "F1"}},
+		getFileInfoFile: &goslack.File{
+			ID: "F1",
+			Shares: goslack.Share{
+				Public: map[string][]goslack.ShareFileInfo{
+					fixtureChannelID: {{Ts: fixtureMessageTS}},
+				},
+			},
+		},
+	}
+	tmp := t.TempDir()
+	a := filepath.Join(tmp, "a.txt")
+	_ = os.WriteFile(a, []byte("abc"), 0o600)
+	stdout := &bytes.Buffer{}
+
+	err := runSendWithAPI(api, fixtureChannelID, "see this", "", []string{a}, stdout)
+	if err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
+
+	want := fixtureChannelID + " " + fixtureMessageTS + "\n"
+	if stdout.String() != want {
+		t.Fatalf("text output = %q, want %q", stdout.String(), want)
 	}
 }
 

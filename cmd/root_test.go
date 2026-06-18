@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/prime-radiant-inc/slackline/errs"
@@ -46,9 +46,14 @@ func newUsageTestRoot() *cobra.Command {
 	return root
 }
 
+type errorLine struct {
+	code   string
+	detail string
+}
+
 // runExec drives executeWith against args and returns the exit code and the
-// decoded JSON error envelope (nil when stderr was empty).
-func runExec(t *testing.T, args ...string) (int, map[string]string) {
+// decoded text error line (nil when stderr was empty).
+func runExec(t *testing.T, args ...string) (int, *errorLine) {
 	t.Helper()
 	root := newUsageTestRoot()
 	root.SetArgs(args)
@@ -58,22 +63,28 @@ func runExec(t *testing.T, args ...string) (int, map[string]string) {
 	if len(trimmed) == 0 {
 		return code, nil
 	}
-	var env map[string]string
-	if err := json.Unmarshal(trimmed, &env); err != nil {
-		t.Fatalf("stderr is not a JSON error envelope: %q (%v)", stderr.String(), err)
+	line := string(trimmed)
+	const prefix = "error: "
+	if !strings.HasPrefix(line, prefix) {
+		t.Fatalf("stderr is not a text error line: %q", stderr.String())
 	}
-	return code, env
+	rest := strings.TrimPrefix(line, prefix)
+	codePart, detail, ok := strings.Cut(rest, ": ")
+	if !ok {
+		t.Fatalf("stderr missing code/detail separator: %q", stderr.String())
+	}
+	return code, &errorLine{code: codePart, detail: detail}
 }
 
-func assertUsage(t *testing.T, code int, env map[string]string) {
+func assertUsage(t *testing.T, code int, line *errorLine) {
 	t.Helper()
 	if code != errs.Usage {
 		t.Errorf("exit code = %d, want %d (errs.Usage)", code, errs.Usage)
 	}
-	if env["error"] != errs.CodeUsageError {
-		t.Errorf("error token = %q, want %q", env["error"], errs.CodeUsageError)
+	if line.code != errs.CodeUsageError {
+		t.Errorf("error token = %q, want %q", line.code, errs.CodeUsageError)
 	}
-	if env["detail"] == "" {
+	if line.detail == "" {
 		t.Error("detail should carry cobra's message, got empty")
 	}
 }
@@ -104,34 +115,34 @@ func TestExecute_MissingArgsExitsUsage(t *testing.T) {
 }
 
 func TestExecute_RuntimeErrorExitsOneUnchanged(t *testing.T) {
-	code, env := runExec(t, "boom")
+	code, line := runExec(t, "boom")
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1 (runtime failure unchanged)", code)
 	}
-	if env["error"] != "unknown_error" {
-		t.Errorf("error token = %q, want %q", env["error"], "unknown_error")
+	if line.code != "unknown_error" {
+		t.Errorf("error token = %q, want %q", line.code, "unknown_error")
 	}
-	if env["detail"] != "kaboom" {
-		t.Errorf("detail = %q, want %q", env["detail"], "kaboom")
+	if line.detail != "kaboom" {
+		t.Errorf("detail = %q, want %q", line.detail, "kaboom")
 	}
 }
 
 func TestExecute_SlackErrorKeepsItsCode(t *testing.T) {
-	code, env := runExec(t, "slackfail")
+	code, line := runExec(t, "slackfail")
 	if code != errs.Auth {
 		t.Errorf("exit code = %d, want %d (errs.Auth)", code, errs.Auth)
 	}
-	if env["error"] != errs.CodeAuthTestFailed {
-		t.Errorf("error token = %q, want %q", env["error"], errs.CodeAuthTestFailed)
+	if line.code != errs.CodeAuthTestFailed {
+		t.Errorf("error token = %q, want %q", line.code, errs.CodeAuthTestFailed)
 	}
 }
 
 func TestExecute_SuccessExitsZero(t *testing.T) {
-	code, env := runExec(t, "do", "--channel", "c", "arg1")
+	code, line := runExec(t, "do", "--channel", "c", "arg1")
 	if code != errs.Success {
 		t.Errorf("exit code = %d, want 0", code)
 	}
-	if env != nil {
-		t.Errorf("success should write no error envelope, got %v", env)
+	if line != nil {
+		t.Errorf("success should write no error line, got %v", line)
 	}
 }

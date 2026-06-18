@@ -16,7 +16,7 @@ allowed-tools: Bash(slackline:*)
 
 ## The membership gotcha (read this first)
 
-The bot can only `read`, `ask`, and `listen` in channels it has **joined**. Otherwise these fail with `{"error":"not_in_channel"}`. `slackline channels` lists the channels it's in. Fix: a human runs `/invite @bot-name` in the target channel. (Posting with `send` to a public channel often works without joining; reading never does.)
+The bot can only `read`, `ask`, and `listen` in channels it has **joined**. Otherwise these fail with `error: not_in_channel: ...`. `slackline channels` lists the channels it's in. Fix: a human runs `/invite @bot-name` in the target channel. (Posting with `send` to a public channel often works without joining; reading never does.)
 
 `--channel` accepts a name (`#ops`), an ID (`C...`), or a pasted Slack URL.
 
@@ -35,7 +35,7 @@ The bot can only `read`, `ask`, and `listen` in channels it has **joined**. Othe
 | Get a message permalink | `slackline permalink --channel '#ops' --ts <ts>` |
 | Ask and wait for a reply | `slackline ask --channel '#ops' --message 'q?' --timeout 120` |
 | React to a message | `slackline react add --channel '#ops' --ts <ts> --emoji white_check_mark` |
-| List the bot's channels | `slackline channels` (`--all`, `--json`) |
+| List the bot's channels | `slackline channels` (`--all`, `--format json`) |
 | Download a file | `slackline download --file <F...> --out path` (`--out -` to stdout) |
 | Stream live events | `slackline listen` (filter with `--type`) |
 
@@ -55,12 +55,23 @@ slackline read --channel '#ops' --limit 1
 - Use `slackline permalink --channel '#ops' --ts <ts>` when you need a browser link to a message.
 - Use `--format json` when a script needs exact JSON fields.
 
+## Sending and reacting
+
+`send` prints `<channel_id> <ts>` by default. Use the timestamp for replies, reactions, or permalinks:
+
+```bash
+read -r ch ts <<<"$(slackline send --channel '#ops' --message 'text')"
+slackline react add --channel "$ch" --ts "$ts" --emoji eyes
+```
+
+`react add` and `react remove` are silent on success by default. Exit `0` is confirmation, including idempotent no-ops. Add `--format json` only if you need the structured confirmation.
+
 ## Ask: reply vs. timeout
 
 `ask` posts a message, then polls the thread for a reply from someone other than the bot.
 
-- **Got a reply:** exit `0`, the reply printed as JSONL on stdout.
-- **Timed out:** exit `5`, `{"error":"timeout",...}` on stderr.
+- **Got a reply:** exit `0`, the reply printed as compact text (`<ts> <user> <text>`) on stdout.
+- **Timed out:** exit `5`, `error: timeout: ...` on stderr.
 - Other failures (API/auth/config) use exit `1`/`2`/`3`.
 
 Branch cleanly on the exit code — no stderr parsing:
@@ -79,7 +90,7 @@ The poll interval (`--poll`, default 10s) means the wait can overshoot `--timeou
 
 ## Listening for events
 
-`slackline listen` streams compact event lines to **stdout**; connection status goes to **stderr** (`connecting`, `connected` = websocket open, `ready` = subscribed and events will now flow, `reconnecting`, `disconnected`). Wait for `ready` before expecting events. Requires both bot and app tokens (Socket Mode). Socket Mode connection failures exit non-zero with `socket_mode_failed`.
+`slackline listen` streams compact event lines to **stdout**; connection status goes to **stderr** (`connecting`, `connected` = websocket open, `ready` = subscribed and events will now flow, `reconnecting`, `disconnected`). Wait for `ready` before expecting events. Requires both bot and app tokens (Socket Mode). Socket Mode connection failures exit non-zero with `error: socket_mode_failed: ...`.
 
 Use `--type` to emit only what you care about:
 
@@ -118,7 +129,7 @@ A file shows up as an indented `file <id> ...` line by default, or as a `files` 
 | 4 | Usage error (bad flags) |
 | 5 | Timeout (`ask` received no reply) |
 
-All errors are written to stderr as JSON: `{"error":"...","detail":"..."}`.
+All errors are written to stderr as text: `error: <code>: <detail>`.
 
 ## Provisioning a new bot
 

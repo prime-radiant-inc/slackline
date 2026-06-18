@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +18,7 @@ var (
 	askMessage string
 	askTimeout int
 	askPoll    int
+	askFormat  string
 )
 
 var askCmd = &cobra.Command{
@@ -33,6 +33,7 @@ func init() {
 	askCmd.Flags().StringVar(&askMessage, "message", "", "message text (reads from stdin if omitted)")
 	askCmd.Flags().IntVar(&askTimeout, "timeout", 300, "seconds to wait for a reply before timing out")
 	askCmd.Flags().IntVar(&askPoll, "poll", 10, "seconds between poll attempts")
+	askCmd.Flags().StringVar(&askFormat, "format", outputFormatText, "output format: text or json")
 	_ = askCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(askCmd)
 }
@@ -84,13 +85,21 @@ func runAsk(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "channel_resolve_error", Detail: err.Error()}
 	}
 
-	return runAskWithAPI(api, channelID, authResp.UserID, text, askTimeout, askPoll, time.Now, time.Sleep, cmd.OutOrStdout())
+	outputFormat, err := parseOutputFormat(askFormat)
+	if err != nil {
+		return err
+	}
+	return runAskWithAPIFormat(api, channelID, authResp.UserID, text, askTimeout, askPoll, outputFormat, time.Now, time.Sleep, cmd.OutOrStdout())
 }
 
 // runAskWithAPI posts text to channelID, then polls the thread until a reply
 // from another user arrives (exit 0) or the deadline passes (Timeout). now/sleep
 // are injected for deterministic tests; production passes time.Now/time.Sleep.
 func runAskWithAPI(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, now func() time.Time, sleep func(time.Duration), out io.Writer) error {
+	return runAskWithAPIFormat(api, channelID, botUserID, text, timeoutSec, pollSec, outputFormatText, now, sleep, out)
+}
+
+func runAskWithAPIFormat(api slackpkg.SlackAPI, channelID, botUserID, text string, timeoutSec, pollSec int, outputFormat string, now func() time.Time, sleep func(time.Duration), out io.Writer) error {
 	_, ts, err := api.PostMessage(channelID, goslack.MsgOptionText(text, false))
 	if err != nil {
 		if isAuthError(err) {
@@ -134,7 +143,9 @@ func runAskWithAPI(api slackpkg.SlackAPI, channelID, botUserID, text string, tim
 
 		if len(replies) > 0 {
 			for _, m := range replies {
-				writeMessage(out, m)
+				if err := writeAskMessage(out, outputFormat, m); err != nil {
+					return err
+				}
 			}
 			return nil
 		}
@@ -153,16 +164,20 @@ func isAuthError(err error) bool {
 		strings.Contains(msg, "account_inactive")
 }
 
+func writeAskMessage(w io.Writer, outputFormat string, m goslack.Message) error {
+	threadTS := m.ThreadTimestamp
+	if threadTS == m.Timestamp {
+		threadTS = ""
+	}
+	return writeMessageOutput(w, outputFormat, messageOutput{
+		TS:       m.Timestamp,
+		User:     m.User,
+		Text:     m.Text,
+		ThreadTS: threadTS,
+	})
+}
+
 // writeMessage writes a message as a compact JSONL line to w.
 func writeMessage(w io.Writer, m goslack.Message) {
-	obj := map[string]string{
-		"ts":   m.Timestamp,
-		"user": m.User,
-		"text": m.Text,
-	}
-	if m.ThreadTimestamp != "" {
-		obj["thread_ts"] = m.ThreadTimestamp
-	}
-	data, _ := json.Marshal(obj)
-	_, _ = fmt.Fprintln(w, string(data))
+	_ = writeAskMessage(w, outputFormatJSON, m)
 }

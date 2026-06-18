@@ -72,6 +72,10 @@ type fakeSlackAPI struct {
 
 	authResp *goslack.AuthTestResponse
 	authErr  error
+
+	postMessageChannel string
+	postMessageTS      string
+	postMessageErr     error
 }
 
 func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
@@ -85,7 +89,13 @@ func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
 }
 
 func (f *fakeSlackAPI) PostMessage(channelID string, options ...goslack.MsgOption) (string, string, error) {
-	return "", "", nil
+	if f.postMessageErr != nil {
+		return "", "", f.postMessageErr
+	}
+	if f.postMessageChannel != "" || f.postMessageTS != "" {
+		return f.postMessageChannel, f.postMessageTS, nil
+	}
+	return channelID, fixtureMessageTS, nil
 }
 
 func (f *fakeSlackAPI) GetConversationHistory(params *goslack.GetConversationHistoryParameters) (*goslack.GetConversationHistoryResponse, error) {

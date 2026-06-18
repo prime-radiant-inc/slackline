@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	downloadFile  string
-	downloadOut   string
-	downloadForce bool
+	downloadFile   string
+	downloadOut    string
+	downloadForce  bool
+	downloadFormat string
 )
 
 const (
@@ -74,10 +75,14 @@ var downloadCmd = &cobra.Command{
 				cap = n
 			}
 		}
+		outputFormat, err := parseOutputFormat(downloadFormat)
+		if err != nil {
+			return err
+		}
 		if downloadOut == "-" {
 			return runDownloadWithAPIWriter(api, downloadFile, "-", downloadForce, cap, cmd.OutOrStdout(), cmd.OutOrStderr())
 		}
-		return runDownloadWithAPI(api, downloadFile, downloadOut, downloadForce, cap, cmd.OutOrStderr())
+		return runDownloadWithAPIFormat(api, downloadFile, downloadOut, downloadForce, cap, outputFormat, cmd.OutOrStderr())
 	},
 }
 
@@ -85,6 +90,7 @@ func init() {
 	downloadCmd.Flags().StringVar(&downloadFile, "file", "", "Slack file ID (F...) (required)")
 	downloadCmd.Flags().StringVar(&downloadOut, "out", "", "output path, or '-' for stdout (required)")
 	downloadCmd.Flags().BoolVar(&downloadForce, "force", false, "overwrite existing file at --out")
+	downloadCmd.Flags().StringVar(&downloadFormat, "format", outputFormatText, "output format for file-write summary: text or json")
 	_ = downloadCmd.MarkFlagRequired("file")
 	_ = downloadCmd.MarkFlagRequired("out")
 	rootCmd.AddCommand(downloadCmd)
@@ -92,6 +98,10 @@ func init() {
 
 // runDownloadWithAPI writes to a path on disk.
 func runDownloadWithAPI(api slackpkg.SlackAPI, fileID, outPath string, force bool, capBytes int64, stderr io.Writer) error {
+	return runDownloadWithAPIFormat(api, fileID, outPath, force, capBytes, outputFormatText, stderr)
+}
+
+func runDownloadWithAPIFormat(api slackpkg.SlackAPI, fileID, outPath string, force bool, capBytes int64, outputFormat string, stderr io.Writer) error {
 	info, _, _, err := api.GetFileInfo(fileID, 0, 0)
 	if err != nil {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "get_file_info_failed", Detail: err.Error()}
@@ -147,7 +157,7 @@ func runDownloadWithAPI(api slackpkg.SlackAPI, fileID, outPath string, force boo
 			return &errs.SlackError{Code: errs.Usage, Err: "commit_failed", Detail: err.Error()}
 		}
 	}
-	return writeDownloadSummary(stderr, info, outPath)
+	return writeDownloadSummary(stderr, outputFormat, info, outPath)
 }
 
 // runDownloadWithAPIWriter writes to a stream (used for --out -).
@@ -176,7 +186,11 @@ func runDownloadWithAPIWriter(api slackpkg.SlackAPI, fileID, outPath string, for
 	return nil
 }
 
-func writeDownloadSummary(stderr io.Writer, info *goslack.File, path string) error {
+func writeDownloadSummary(stderr io.Writer, outputFormat string, info *goslack.File, path string) error {
+	if outputFormat != outputFormatJSON {
+		_, _ = fmt.Fprintf(stderr, "downloaded %s %s %d\n", info.ID, path, info.Size)
+		return nil
+	}
 	out := struct {
 		OK       bool   `json:"ok"`
 		File     string `json:"file"`

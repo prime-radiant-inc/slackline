@@ -1,7 +1,6 @@
 package errs
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 )
@@ -16,7 +15,7 @@ const (
 )
 
 // Error code strings used in SlackError.Err. These are wire format — they
-// appear in machine-readable JSON output and are keyed on by callers/tests.
+// appear in stderr error output and are keyed on by callers/tests.
 const (
 	CodeConfigError    = "config_error"
 	CodeNoToken        = "no_token"
@@ -42,14 +41,9 @@ func (e *SlackError) ExitCode() int {
 	return e.Code
 }
 
-// WriteError writes a JSON error object to w with a trailing newline.
+// WriteError writes a compact text error line to w with a trailing newline.
 func WriteError(w io.Writer, errCode string, detail string) {
-	obj := struct {
-		Error  string `json:"error"`
-		Detail string `json:"detail"`
-	}{Error: errCode, Detail: detail}
-	data, _ := json.Marshal(obj)
-	_, _ = fmt.Fprintln(w, string(data))
+	_, _ = fmt.Fprintf(w, "error: %s: %s\n", errCode, detail)
 }
 
 // AuthError returns a SlackError for authentication failures.

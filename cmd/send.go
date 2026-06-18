@@ -19,6 +19,7 @@ var (
 	sendMessage string
 	sendThread  string
 	sendAttach  []string
+	sendFormat  string
 )
 
 const defaultMaxUploadBytes = int64(100 * 1024 * 1024)
@@ -28,6 +29,7 @@ func init() {
 	sendCmd.Flags().StringVar(&sendMessage, "message", "", "message text (reads stdin if omitted; optional when --attach is used)")
 	sendCmd.Flags().StringVar(&sendThread, "thread", "", "thread timestamp to reply to")
 	sendCmd.Flags().StringArrayVar(&sendAttach, "attach", nil, "attach a file by path (repeatable)")
+	sendCmd.Flags().StringVar(&sendFormat, "format", outputFormatText, "output format: text or json")
 	_ = sendCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(sendCmd)
 }
@@ -63,12 +65,20 @@ var sendCmd = &cobra.Command{
 			return err
 		}
 
-		return runSendWithAPI(api, channelID, text, sendThread, sendAttach, cmd.OutOrStdout())
+		outputFormat, err := parseOutputFormat(sendFormat)
+		if err != nil {
+			return err
+		}
+		return runSendWithAPIFormat(api, channelID, text, sendThread, sendAttach, outputFormat, cmd.OutOrStdout())
 	},
 }
 
 // runSendWithAPI is the testable core. attachPaths == nil → text-only path.
 func runSendWithAPI(api slackpkg.SlackAPI, channelID, text, threadTS string, attachPaths []string, stdout io.Writer) error {
+	return runSendWithAPIFormat(api, channelID, text, threadTS, attachPaths, outputFormatText, stdout)
+}
+
+func runSendWithAPIFormat(api slackpkg.SlackAPI, channelID, text, threadTS string, attachPaths []string, outputFormat string, stdout io.Writer) error {
 	if len(attachPaths) == 0 {
 		if text == "" {
 			return &errs.SlackError{Code: errs.Usage, Err: "empty_message", Detail: "Message cannot be empty when no --attach is provided"}
@@ -84,7 +94,7 @@ func runSendWithAPI(api slackpkg.SlackAPI, channelID, text, threadTS string, att
 			}
 			return &errs.SlackError{Code: errs.SlackAPI, Err: "send_failed", Detail: err.Error()}
 		}
-		return writeSendJSON(stdout, respChan, ts, threadTS, nil)
+		return writeSendOutput(stdout, outputFormat, respChan, ts, threadTS, nil)
 	}
 
 	if err := validateAttachments(attachPaths); err != nil {
@@ -106,7 +116,11 @@ func runSendWithAPI(api slackpkg.SlackAPI, channelID, text, threadTS string, att
 	for i, r := range results {
 		files[i] = map[string]string{"id": r.ID, "title": r.Title}
 	}
-	return writeSendJSON(stdout, channelID, "", threadTS, files)
+	messageTS := ""
+	if outputFormat != outputFormatJSON {
+		messageTS = uploadedMessageTS(api, channelID, results)
+	}
+	return writeSendOutput(stdout, outputFormat, channelID, messageTS, threadTS, files)
 }
 
 func validateAttachments(paths []string) error {
@@ -137,7 +151,36 @@ func validateAttachments(paths []string) error {
 	return nil
 }
 
-func writeSendJSON(stdout io.Writer, channelID, ts, threadTS string, files []map[string]string) error {
+func uploadedMessageTS(api slackpkg.SlackAPI, channelID string, files []goslack.FileSummary) string {
+	if len(files) == 0 || files[0].ID == "" {
+		return ""
+	}
+	info, _, _, err := api.GetFileInfo(files[0].ID, 0, 0)
+	if err != nil || info == nil {
+		return ""
+	}
+	for _, share := range info.Shares.Public[channelID] {
+		if share.Ts != "" {
+			return share.Ts
+		}
+	}
+	for _, share := range info.Shares.Private[channelID] {
+		if share.Ts != "" {
+			return share.Ts
+		}
+	}
+	return ""
+}
+
+func writeSendOutput(stdout io.Writer, outputFormat, channelID, ts, threadTS string, files []map[string]string) error {
+	if outputFormat != outputFormatJSON {
+		_, _ = fmt.Fprint(stdout, channelID)
+		if ts != "" {
+			_, _ = fmt.Fprintf(stdout, " %s", ts)
+		}
+		_, _ = fmt.Fprintln(stdout)
+		return nil
+	}
 	out := struct {
 		OK       bool                `json:"ok"`
 		Channel  string              `json:"channel"`
