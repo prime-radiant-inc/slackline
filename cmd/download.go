@@ -64,7 +64,7 @@ var downloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download a file from Slack by file ID",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		api, err := loadReactAPI()
+		api, err := loadBotAPI()
 		if err != nil {
 			return err
 		}

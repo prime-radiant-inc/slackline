@@ -96,6 +96,18 @@ Returns the most recent `--limit` messages in **chronological order** (oldest fi
 
 Newlines inside Slack message text are escaped as `\n` so each message starts on one line. Attached files are shown as indented `file` continuation lines. Use `--format json` for the previous JSONL shape.
 
+### permalink
+
+```bash
+slackline permalink --channel <channel> --ts <message-ts>
+```
+
+Prints a Slack permalink for a message:
+
+```text
+https://example.slack.com/archives/C.../p1234567890123456
+```
+
 ### ask
 
 ```bash

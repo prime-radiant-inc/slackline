@@ -26,7 +26,7 @@ var reactAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Add a reaction to a message",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		api, err := loadReactAPI()
+		api, err := loadBotAPI()
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ var reactRemoveCmd = &cobra.Command{
 	Use:   "remove",
 	Short: "Remove a reaction from a message",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		api, err := loadReactAPI()
+		api, err := loadBotAPI()
 		if err != nil {
 			return err
 		}
@@ -67,8 +67,8 @@ func init() {
 	rootCmd.AddCommand(reactCmd)
 }
 
-// loadReactAPI loads config and returns a SlackAPI.
-func loadReactAPI() (slackpkg.SlackAPI, error) {
+// loadBotAPI loads config and returns a bot-token SlackAPI.
+func loadBotAPI() (slackpkg.SlackAPI, error) {
 	cfg, _, err := loadConfig()
 	if err != nil {
 		return nil, &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}

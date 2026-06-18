@@ -32,6 +32,7 @@ The bot can only `read`, `ask`, and `listen` in channels it has **joined**. Othe
 | Read the single newest message | `slackline read --channel '#ops' --limit 1` |
 | Read since a time | `slackline read --channel '#ops' --since 2026-03-17T00:00:00Z` |
 | Read a thread (newest reply: `--limit 1`) | `slackline read --channel '#ops' --thread <ts> --limit 20` |
+| Get a message permalink | `slackline permalink --channel '#ops' --ts <ts>` |
 | Ask and wait for a reply | `slackline ask --channel '#ops' --message 'q?' --timeout 120` |
 | React to a message | `slackline react add --channel '#ops' --ts <ts> --emoji white_check_mark` |
 | List the bot's channels | `slackline channels` (`--all`, `--json`) |
@@ -51,6 +52,7 @@ slackline read --channel '#ops' --limit 1
 - Text output starts with `<ts> <user>`, followed by `thread=<ts>` when present, then message text. Attached files appear as indented `file <id> ...` continuation lines.
 - This holds for threads too: `read --thread <ts> --limit 1` is the newest reply. A thread read includes the parent, which counts toward `--limit`; a line is a real reply when its timestamp differs from the thread parent timestamp.
 - The user token is a Slack user **ID** (`U...`), not a display name.
+- Use `slackline permalink --channel '#ops' --ts <ts>` when you need a browser link to a message.
 - Use `--format json` when a script needs exact JSON fields.
 
 ## Ask: reply vs. timeout

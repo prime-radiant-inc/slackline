@@ -36,6 +36,10 @@ func (f *fakeAPI) GetConversations(params *goslack.GetConversationsParameters) (
 	return f.channels, "", nil
 }
 
+func (f *fakeAPI) GetPermalink(params *goslack.PermalinkParameters) (string, error) {
+	return "", nil
+}
+
 func (f *fakeAPI) AddReaction(_ string, _ goslack.ItemRef) error    { return nil }
 func (f *fakeAPI) RemoveReaction(_ string, _ goslack.ItemRef) error { return nil }
 

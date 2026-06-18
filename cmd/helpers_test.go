@@ -66,6 +66,10 @@ type fakeSlackAPI struct {
 	uploadFilesResp     []goslack.FileSummary
 	uploadFilesErr      error
 
+	permalinkURL            string
+	permalinkErr            error
+	capturedPermalinkParams *goslack.PermalinkParameters
+
 	authResp *goslack.AuthTestResponse
 	authErr  error
 }
@@ -159,6 +163,14 @@ func (f *fakeSlackAPI) UploadFiles(channelID, threadTS, initialComment string, f
 		return nil, f.uploadFilesErr
 	}
 	return f.uploadFilesResp, nil
+}
+
+func (f *fakeSlackAPI) GetPermalink(params *goslack.PermalinkParameters) (string, error) {
+	f.capturedPermalinkParams = params
+	if f.permalinkErr != nil {
+		return "", f.permalinkErr
+	}
+	return f.permalinkURL, nil
 }
 
 // Compile-time check that fakeSlackAPI satisfies slackpkg.SlackAPI.

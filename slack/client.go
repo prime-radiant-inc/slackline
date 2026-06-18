@@ -38,5 +38,7 @@ func (c *realClient) OpenSocketMode(ctx context.Context) error {
 }
 
 // Compile-time check that realClient satisfies SlackAPI.
-var _ SlackAPI = (*realClient)(nil)
-var _ AppTokenAPI = (*realClient)(nil)
+var (
+	_ SlackAPI    = (*realClient)(nil)
+	_ AppTokenAPI = (*realClient)(nil)
+)

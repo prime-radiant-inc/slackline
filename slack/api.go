@@ -15,6 +15,7 @@ type SlackAPI interface {
 	GetConversationHistory(params *goslack.GetConversationHistoryParameters) (*goslack.GetConversationHistoryResponse, error)
 	GetConversationReplies(params *goslack.GetConversationRepliesParameters) ([]goslack.Message, bool, string, error)
 	GetConversations(params *goslack.GetConversationsParameters) ([]goslack.Channel, string, error)
+	GetPermalink(params *goslack.PermalinkParameters) (string, error)
 
 	// Reactions (Task 6).
 	AddReaction(name string, item goslack.ItemRef) error
