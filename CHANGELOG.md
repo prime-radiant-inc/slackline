@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-06-18
+
+### Added
+- `slackline auth whoami` prints the authenticated bot identity.
+- `slackline permalink` prints the bare Slack permalink for a message.
+- `slackline send`, `ask`, `react`, `channels`, and `download` now accept `--format json` where structured output is useful.
+
+### Changed
+- **Breaking:** runtime commands now default to compact, line-oriented text for agent-facing output instead of JSON envelopes. `send` prints `<channel_id> <ts>`, `ask` replies print the same `<ts> <user> <text>` shape as `read`, and `react add/remove` are silent on success.
+- **Breaking:** error output is now `error: <code>: <detail>` on stderr. Exit codes remain the machine contract.
+- **Breaking:** `channels --json` is replaced by `channels --format json`.
+- `slackline read` and `listen` now default to compact text, with JSONL still available through `--format json`.
+- `slackline auth status` now validates the Socket Mode app token instead of only reporting that it is configured.
+
+### Fixed
+- `slackline listen` now returns a non-zero error with detail when Socket Mode disconnects before readiness.
+- `slackline listen --all-messages --type ...` no longer emits Slack `message_replied` parent updates as ordinary `channel_message` events.
+
 ## [0.3.4] - 2026-06-09
 
 ### Fixed
