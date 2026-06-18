@@ -15,11 +15,12 @@ import (
 )
 
 var (
-	readChannel string
-	readLimit   int
-	readThread  string
-	readSince   string
-	readFormat  string
+	readChannel        string
+	readLimit          int
+	readThread         string
+	readSince          string
+	readFormat         string
+	readNoResolveNames bool
 )
 
 const (
@@ -33,6 +34,7 @@ func init() {
 	readCmd.Flags().StringVar(&readThread, "thread", "", "thread timestamp to read replies from")
 	readCmd.Flags().StringVar(&readSince, "since", "", "only return messages after this ISO 8601 timestamp")
 	readCmd.Flags().StringVar(&readFormat, "format", outputFormatText, "output format: text or json")
+	readCmd.Flags().BoolVar(&readNoResolveNames, "no-resolve-names", false, "do not resolve user IDs to handles (skips a users.list lookup)")
 	_ = readCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(readCmd)
 }
@@ -48,6 +50,7 @@ var readCmd = &cobra.Command{
 type messageOutput struct {
 	TS       string         `json:"ts"`
 	User     string         `json:"user"`
+	UserName string         `json:"user_name,omitempty"`
 	Text     string         `json:"text"`
 	ThreadTS string         `json:"thread_ts,omitempty"`
 	Files    []fileMetaJSON `json:"files,omitempty"`
@@ -104,6 +107,7 @@ func runRead(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.SlackAPI, Err: "read_failed", Detail: err.Error()}
 	}
 
+	outputs := make([]messageOutput, 0, len(messages))
 	for _, m := range messages {
 		threadTS := m.ThreadTimestamp
 		if threadTS == m.Timestamp {
@@ -119,18 +123,51 @@ func runRead(cmd *cobra.Command, args []string) error {
 				Title:    f.Title,
 			})
 		}
-		out := messageOutput{
+		outputs = append(outputs, messageOutput{
 			TS:       m.Timestamp,
 			User:     m.User,
 			Text:     m.Text,
 			ThreadTS: threadTS,
 			Files:    files,
-		}
+		})
+	}
+
+	var dir *slackpkg.UserDirectory
+	if !readNoResolveNames {
+		dir = slackpkg.NewUserDirectory(api)
+	}
+	outputs = resolveNames(dir, outputs, cmd.OutOrStderr())
+
+	for _, out := range outputs {
 		if err := writeMessageOutput(cmd.OutOrStdout(), outputFormat, out); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// resolveNames enriches each message's in-text mentions to the <@ID|handle>
+// form and fills in the author's handle, using a single cached users.list
+// fetch. When dir is nil (resolution disabled) the messages are returned
+// unchanged; if the lookup fails the raw IDs are kept and a warning is emitted,
+// since read output is still useful without names.
+func resolveNames(dir *slackpkg.UserDirectory, msgs []messageOutput, warnOut io.Writer) []messageOutput {
+	if dir == nil {
+		return msgs
+	}
+	if err := dir.Load(); err != nil {
+		_, _ = fmt.Fprintf(warnOut, "warning: could not resolve user names: %v\n", err)
+		return msgs
+	}
+	for i := range msgs {
+		if enriched, err := dir.EnrichMentions(msgs[i].Text); err == nil {
+			msgs[i].Text = enriched
+		}
+		if handle, ok, _ := dir.Name(msgs[i].User); ok {
+			msgs[i].UserName = handle
+		}
+	}
+	return msgs
 }
 
 func parseOutputFormat(raw string) (string, error) {
@@ -158,7 +195,11 @@ func writeMessageOutput(w io.Writer, outputFormat string, out messageOutput) err
 
 func formatMessageText(out messageOutput) string {
 	var b strings.Builder
-	parts := []string{out.TS, out.User}
+	user := out.User
+	if out.UserName != "" {
+		user = out.User + "|" + out.UserName
+	}
+	parts := []string{out.TS, user}
 	if out.ThreadTS != "" {
 		parts = append(parts, "thread="+out.ThreadTS)
 	}

@@ -3,10 +3,13 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/prime-radiant-inc/slackline/errs"
 	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	goslack "github.com/slack-go/slack"
 )
@@ -169,6 +172,87 @@ func TestSend_AttachExceedsSizeCap(t *testing.T) {
 	err := runSendWithAPI(api, fixtureChannelID, "", "", []string{p}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected size-cap error")
+	}
+}
+
+// --- linkifyMessage (Issue #1) ---
+
+func TestLinkifyMessage_ResolvesHandle(t *testing.T) {
+	api := &fakeSlackAPI{users: drewUser()}
+	var warn bytes.Buffer
+	got, err := linkifyMessage(api, "heads up @drew", false, &warn)
+	if err != nil {
+		t.Fatalf("linkifyMessage error: %v", err)
+	}
+	if got != "heads up <@U1>" {
+		t.Fatalf("linkifyMessage = %q, want %q", got, "heads up <@U1>")
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("unexpected warning: %q", warn.String())
+	}
+}
+
+func TestLinkifyMessage_DisabledLeavesLiteral(t *testing.T) {
+	api := &fakeSlackAPI{users: drewUser()}
+	var warn bytes.Buffer
+	got, err := linkifyMessage(api, "heads up @drew", true, &warn)
+	if err != nil {
+		t.Fatalf("linkifyMessage error: %v", err)
+	}
+	if got != "heads up @drew" {
+		t.Fatalf("disabled linkify changed text: %q", got)
+	}
+}
+
+func TestLinkifyMessage_UnresolvedWarns(t *testing.T) {
+	api := &fakeSlackAPI{users: drewUser()}
+	var warn bytes.Buffer
+	got, err := linkifyMessage(api, "ping @nobody", false, &warn)
+	if err != nil {
+		t.Fatalf("linkifyMessage error: %v", err)
+	}
+	if got != "ping @nobody" {
+		t.Fatalf("unresolved mention should stay literal, got %q", got)
+	}
+	if !strings.Contains(warn.String(), "nobody") {
+		t.Fatalf("expected warning mentioning 'nobody', got %q", warn.String())
+	}
+}
+
+func TestLinkifyMessage_EmailUntouchedNoWarn(t *testing.T) {
+	api := &fakeSlackAPI{users: drewUser()}
+	var warn bytes.Buffer
+	got, err := linkifyMessage(api, "reach me at drew@example.com", false, &warn)
+	if err != nil {
+		t.Fatalf("linkifyMessage error: %v", err)
+	}
+	if got != "reach me at drew@example.com" {
+		t.Fatalf("email should be untouched, got %q", got)
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("email should not warn, got %q", warn.String())
+	}
+}
+
+func TestLinkifyMessage_APIErrorFails(t *testing.T) {
+	api := &fakeSlackAPI{usersErr: errors.New("missing_scope")}
+	var warn bytes.Buffer
+	_, err := linkifyMessage(api, "ping @drew", false, &warn)
+	if err == nil {
+		t.Fatal("expected error when user resolution fails with a mention present")
+	}
+}
+
+func TestLinkifyMessage_AuthErrorMapped(t *testing.T) {
+	api := &fakeSlackAPI{usersErr: errors.New("token_revoked")}
+	var warn bytes.Buffer
+	_, err := linkifyMessage(api, "ping @drew", false, &warn)
+	if !isAuthError(errors.New("token_revoked")) {
+		t.Fatal("precondition: token_revoked should be an auth error")
+	}
+	var se *errs.SlackError
+	if !errors.As(err, &se) || se.Code != errs.Auth {
+		t.Fatalf("expected auth-coded SlackError, got %v", err)
 	}
 }
 

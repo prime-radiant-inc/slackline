@@ -62,11 +62,13 @@ slackline auth whoami
 ### send
 
 ```bash
-slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach <path>] ... [--format text|json]
+slackline send --channel <channel> [--message <text>] [--thread <ts>] [--attach <path>] ... [--no-link-names] [--format text|json]
 echo "text" | slackline send --channel <channel>
 ```
 
 `--channel` accepts name (`#ops`), ID (`C...`), or Slack URL. `--message` or piped stdin. Trailing newline stripped from stdin. `--attach` may be repeated; message text is optional when at least one file is attached. Combined attachment size is capped at 100 MB; override with `SLACKLINE_MAX_UPLOAD_BYTES`.
+
+**Mentions:** `@handle` tokens are linkified to real Slack mentions (`<@U...>`) so the person is actually notified. Matching is by username first (unique), then display/real name. A token that matches no unique user is left as literal text and a `warning:` line is written to stderr (the message still sends). Email addresses (`name@example.com`) are never treated as mentions. Pass `--no-link-names` to post `@handle` as literal text. Use `slackline users --match <name>` to find a user's ID.
 
 Default output is compact text:
 
@@ -85,18 +87,18 @@ Use `--format json` for the structured shape:
 ### read
 
 ```bash
-slackline read --channel <channel> [--limit 20] [--thread <ts>] [--since <RFC3339>] [--format text|json]
+slackline read --channel <channel> [--limit 20] [--thread <ts>] [--since <RFC3339>] [--no-resolve-names] [--format text|json]
 ```
 
 Returns the most recent `--limit` messages in **chronological order** (oldest first). For both channel and thread reads, `--limit` counts back from the newest message, so the latest reply is always included. Default output is compact text:
 
 ```text
-1234567890.123456 U... hello
-1234567890.654321 U... thread=1234567890.123456 reply
+1234567890.123456 U...|alice hello <@U...|bob>
+1234567890.654321 U...|bob thread=1234567890.123456 reply
   file F... report.pdf 204800 application/pdf Q1 Report
 ```
 
-Newlines inside Slack message text are escaped as `\n` so each message starts on one line. Attached files are shown as indented `file` continuation lines. Use `--format json` for the previous JSONL shape.
+User IDs are resolved to handles: the author column renders as `U...|handle`, and in-text mentions are enriched from `<@U...>` to the labeled `<@U...|handle>` form (the ID is preserved, so it stays machine-parseable). JSON output keeps `user` as the raw ID and adds a `user_name` field. Resolution costs one `users.list` lookup per read; pass `--no-resolve-names` to skip it and emit raw IDs. Newlines inside Slack message text are escaped as `\n` so each message starts on one line. Attached files are shown as indented `file` continuation lines. Use `--format json` for the JSONL shape.
 
 ### permalink
 
@@ -183,6 +185,19 @@ slackline channels [--all] [--format text|json]
 ```
 
 Default: table of channels the bot has joined. `--all`: all visible channels. `--format json`: JSON array with `id`, `name`, `topic`, `purpose`.
+
+### users
+
+```bash
+slackline users [--match <query>] [--format text|json]
+```
+
+List workspace users, or resolve a name to an ID with `--match` (case-insensitive substring over ID, handle, display name, and real name). Deactivated users are excluded. This is the path from a name/handle to the `U...` ID needed to mention someone. `--format json`: JSON array with `id`, `handle`, `display_name`, `real_name`.
+
+```text
+ID     HANDLE   DISPLAY   REAL NAME
+U...   @alice   Alice     Alice Smith
+```
 
 ## Configuration
 
@@ -374,6 +389,8 @@ Existing bots provisioned before this release may need to be reinstalled (via th
 - `files:write` — required by `slackline send --attach`
 
 Check current scopes at `https://api.slack.com/apps/<APP_ID>/oauth`. If the scopes are missing, re-run `slackline provision <name>` to get a fresh OAuth authorize URL, then reinstall.
+
+The `users` command and the mention/name resolution in `send` and `read` use `users:read`, which has been in the manifest since the first release — no reinstall is required for those features.
 
 ## Development
 

@@ -13,6 +13,8 @@ const fixtureChannelID = "C01ABC23DEF"
 // fakeAPI implements SlackAPI for testing channel resolution.
 type fakeAPI struct {
 	channels []goslack.Channel
+	users    []goslack.User
+	usersErr error
 }
 
 func (f *fakeAPI) AuthTest() (*goslack.AuthTestResponse, error) {
@@ -38,6 +40,13 @@ func (f *fakeAPI) GetConversations(params *goslack.GetConversationsParameters) (
 
 func (f *fakeAPI) GetPermalink(params *goslack.PermalinkParameters) (string, error) {
 	return "", nil
+}
+
+func (f *fakeAPI) GetUsers(_ ...goslack.GetUsersOption) ([]goslack.User, error) {
+	if f.usersErr != nil {
+		return nil, f.usersErr
+	}
+	return f.users, nil
 }
 
 func (f *fakeAPI) AddReaction(_ string, _ goslack.ItemRef) error    { return nil }

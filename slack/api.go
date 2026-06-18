@@ -17,6 +17,9 @@ type SlackAPI interface {
 	GetConversations(params *goslack.GetConversationsParameters) ([]goslack.Channel, string, error)
 	GetPermalink(params *goslack.PermalinkParameters) (string, error)
 
+	// Users (Issue #1: mention linkification + user directory).
+	GetUsers(options ...goslack.GetUsersOption) ([]goslack.User, error)
+
 	// Reactions (Task 6).
 	AddReaction(name string, item goslack.ItemRef) error
 	RemoveReaction(name string, item goslack.ItemRef) error

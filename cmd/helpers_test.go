@@ -17,7 +17,28 @@ const (
 	fixtureChannelID  = "C123"
 	fixtureUserID     = "U123"
 	fixtureEmojiThumb = "thumbsup"
+
+	fixtureHandle  = "drew"
+	fixtureDisplay = "Drew"
+	fixtureReal    = "Drew Smith"
 )
+
+// cmdMakeUser builds a goslack.User fixture for user-resolution tests.
+func cmdMakeUser(id, handle, display, real string) goslack.User {
+	u := goslack.User{}
+	u.ID = id
+	u.Name = handle
+	u.RealName = real
+	u.Profile.DisplayName = display
+	u.Profile.RealName = real
+	return u
+}
+
+// drewUser is the standard single-user fixture (@drew -> U1) shared across
+// mention-resolution tests.
+func drewUser() []goslack.User {
+	return []goslack.User{cmdMakeUser("U1", fixtureHandle, fixtureDisplay, fixtureReal)}
+}
 
 // uploadFilesCall records arguments from a single UploadFiles invocation.
 type uploadFilesCall struct {
@@ -76,6 +97,9 @@ type fakeSlackAPI struct {
 	postMessageChannel string
 	postMessageTS      string
 	postMessageErr     error
+
+	users    []goslack.User
+	usersErr error
 }
 
 func (f *fakeSlackAPI) AuthTest() (*goslack.AuthTestResponse, error) {
@@ -181,6 +205,13 @@ func (f *fakeSlackAPI) GetPermalink(params *goslack.PermalinkParameters) (string
 		return "", f.permalinkErr
 	}
 	return f.permalinkURL, nil
+}
+
+func (f *fakeSlackAPI) GetUsers(_ ...goslack.GetUsersOption) ([]goslack.User, error) {
+	if f.usersErr != nil {
+		return nil, f.usersErr
+	}
+	return f.users, nil
 }
 
 // Compile-time check that fakeSlackAPI satisfies slackpkg.SlackAPI.

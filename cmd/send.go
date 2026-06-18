@@ -15,11 +15,12 @@ import (
 )
 
 var (
-	sendChannel string
-	sendMessage string
-	sendThread  string
-	sendAttach  []string
-	sendFormat  string
+	sendChannel     string
+	sendMessage     string
+	sendThread      string
+	sendAttach      []string
+	sendFormat      string
+	sendNoLinkNames bool
 )
 
 const defaultMaxUploadBytes = int64(100 * 1024 * 1024)
@@ -30,6 +31,7 @@ func init() {
 	sendCmd.Flags().StringVar(&sendThread, "thread", "", "thread timestamp to reply to")
 	sendCmd.Flags().StringArrayVar(&sendAttach, "attach", nil, "attach a file by path (repeatable)")
 	sendCmd.Flags().StringVar(&sendFormat, "format", outputFormatText, "output format: text or json")
+	sendCmd.Flags().BoolVar(&sendNoLinkNames, "no-link-names", false, "do not linkify @handle mentions; post them as literal text")
 	_ = sendCmd.MarkFlagRequired("channel")
 	rootCmd.AddCommand(sendCmd)
 }
@@ -69,8 +71,36 @@ var sendCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		text, err = linkifyMessage(api, text, sendNoLinkNames, cmd.OutOrStderr())
+		if err != nil {
+			return err
+		}
 		return runSendWithAPIFormat(api, channelID, text, sendThread, sendAttach, outputFormat, cmd.OutOrStdout())
 	},
+}
+
+// linkifyMessage rewrites @handle mentions in text to Slack <@ID> form so the
+// mentioned users are actually notified. Handles that don't resolve to a unique
+// user are left literal and reported as warnings to warnOut. Resolution only
+// contacts Slack when the text contains an @mention; a resolution failure
+// (e.g. a missing users:read scope) is returned as an error rather than
+// silently posting the mention as plain text.
+func linkifyMessage(api slackpkg.SlackAPI, text string, disabled bool, warnOut io.Writer) (string, error) {
+	if disabled || text == "" {
+		return text, nil
+	}
+	linked, unresolved, err := slackpkg.NewUserDirectory(api).LinkifyMentions(text)
+	if err != nil {
+		if isAuthError(err) {
+			return "", errs.AuthError(err.Error())
+		}
+		return "", &errs.SlackError{Code: errs.SlackAPI, Err: "mention_resolve_failed", Detail: err.Error()}
+	}
+	for _, token := range unresolved {
+		_, _ = fmt.Fprintf(warnOut, "warning: @%s did not match a unique user; left as literal text (no notification sent)\n", token)
+	}
+	return linked, nil
 }
 
 // runSendWithAPI is the testable core. attachPaths == nil → text-only path.

@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `slackline users [--match <query>]` lists workspace users and resolves a handle, display name, real name, or ID to a `U...` user ID (the path needed to mention someone).
+
+### Changed
+- `slackline send` now linkifies `@handle` mentions to real Slack mentions (`<@U...>`) so the person is notified. Handles that don't match a unique user are left as literal text with a `warning:` on stderr; email addresses are never treated as mentions. Pass `--no-link-names` to opt out. (#1)
+- `slackline read` now resolves user IDs to handles: the author column renders as `U...|handle`, in-text `<@U...>` mentions are enriched to the labeled `<@U...|handle>` form, and JSON output gains a `user_name` field. Pass `--no-resolve-names` to skip the lookup. (#1)
+
 ## [0.4.0] - 2026-06-18
 
 ### Added
