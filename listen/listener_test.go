@@ -658,6 +658,25 @@ func TestHandleEventsAPI_AllMessagesMode_ChannelMessage(t *testing.T) {
 	}
 }
 
+func TestHandleEventsAPI_AllMessagesMode_MessageRepliedParentDropped(t *testing.T) {
+	l, buf := newTestListener()
+	l.allMessages = true
+
+	l.handleEventsAPI(makeEventsAPIEvent(&slackevents.MessageEvent{
+		User:      testOtherUserID,
+		Text:      "parent text",
+		Channel:   fixtureChannelID,
+		TimeStamp: testThreadTS,
+		Message: &goslack.Msg{
+			SubType: goslack.MsgSubTypeMessageReplied,
+		},
+	}))
+
+	if buf.Len() != 0 {
+		t.Errorf("message_replied parent should be dropped, got: %s", buf.String())
+	}
+}
+
 func TestHandleEventsAPI_DefaultMode_BotParentThreadReplyEmitted(t *testing.T) {
 	l, buf := newTestListener()
 	// Default — no --threads, no --all-messages.

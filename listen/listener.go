@@ -80,6 +80,16 @@ func (l *Listener) shouldFilterSelf(user, botID string) bool {
 	return (user != "" && user == l.botUserID) || (botID != "" && botID == l.botID)
 }
 
+// slack-go can expose the subtype either on MessageEvent or the embedded Msg.
+// Only file_share is a user-authored message subtype we intentionally emit.
+func ignoredMessageSubtype(ev *slackevents.MessageEvent) bool {
+	subtype := ev.SubType
+	if subtype == "" && ev.Message != nil {
+		subtype = ev.Message.SubType
+	}
+	return subtype != "" && subtype != messageSubtypeFileShare
+}
+
 // Run starts the Socket Mode connection and blocks until interrupted.
 // Events are written to l.out. Status messages go to l.status.
 // Shuts down on SIGTERM/SIGINT or returns when the Socket Mode runner fails.
@@ -182,7 +192,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 				return
 			}
 			// Allow file_share subtype since it carries Files; skip other subtypes.
-			if ev.SubType != "" && ev.SubType != messageSubtypeFileShare {
+			if ignoredMessageSubtype(ev) {
 				return
 			}
 			l.emit(Event{
@@ -200,7 +210,7 @@ func (l *Listener) handleEventsAPI(evt slackevents.EventsAPIEvent) {
 		if l.shouldFilterSelf(ev.User, ev.BotID) {
 			return
 		}
-		if ev.SubType != "" && ev.SubType != messageSubtypeFileShare {
+		if ignoredMessageSubtype(ev) {
 			return
 		}
 		isThread := ev.ThreadTimeStamp != "" && ev.ThreadTimeStamp != ev.TimeStamp
