@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/prime-radiant-inc/slackline/config"
 	"github.com/prime-radiant-inc/slackline/errs"
 	slackpkg "github.com/prime-radiant-inc/slackline/slack"
 	goslack "github.com/slack-go/slack"
@@ -42,14 +44,26 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		return &errs.SlackError{Code: errs.Config, Err: errs.CodeConfigError, Detail: err.Error()}
 	}
 
+	var botAPI slackpkg.SlackAPI
+	if cfg.Bot.BotToken != "" {
+		botAPI = slackpkg.NewClient(cfg.Bot.BotToken)
+	}
+	var appAPI slackpkg.AppTokenAPI
+	if cfg.Bot.AppToken != "" && strings.HasPrefix(cfg.Bot.AppToken, "xapp-") {
+		appAPI = slackpkg.NewAppClient(cfg.Bot.AppToken)
+	}
+
+	return runAuthStatusWithAPIs(cfg, cfgPath, botAPI, appAPI, cmd.OutOrStdout())
+}
+
+func runAuthStatusWithAPIs(cfg *config.Config, cfgPath string, botAPI slackpkg.SlackAPI, appAPI slackpkg.AppTokenAPI, out io.Writer) error {
 	// Validate bot token
 	botStatus := "(not configured)"
 	botName := unknownDisplay
 	workspace := unknownDisplay
 	teamID := ""
-	if cfg.Bot.BotToken != "" {
-		client := slackpkg.NewClient(cfg.Bot.BotToken)
-		resp, authErr := client.AuthTest()
+	if cfg.Bot.BotToken != "" && botAPI != nil {
+		resp, authErr := botAPI.AuthTest()
 		if authErr != nil {
 			botStatus = fmt.Sprintf("(invalid: %s)", authErr.Error())
 		} else {
@@ -66,12 +80,16 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// App tokens (xapp-) are only valid for Socket Mode — auth.test doesn't accept them.
-	// Just check the prefix to confirm the right token type was configured.
 	appStatus := "(not configured)"
 	if cfg.Bot.AppToken != "" {
 		if strings.HasPrefix(cfg.Bot.AppToken, "xapp-") {
-			appStatus = "(configured)"
+			if appAPI == nil {
+				appStatus = "(invalid: app token validator unavailable)"
+			} else if err := appAPI.OpenSocketMode(context.Background()); err != nil {
+				appStatus = fmt.Sprintf("(invalid: %s)", err.Error())
+			} else {
+				appStatus = "(valid)"
+			}
 		} else {
 			appStatus = "(invalid: expected xapp- prefix)"
 		}
@@ -83,11 +101,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		workspaceDisplay = fmt.Sprintf("%s (%s)", workspace, teamID)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Bot:       %s\n", botName)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workspace: %s\n", workspaceDisplay)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Bot Token: %s %s\n", maskToken(cfg.Bot.BotToken), botStatus)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "App Token: %s %s\n", maskToken(cfg.Bot.AppToken), appStatus)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Config:    %s\n", cfgPath)
+	_, _ = fmt.Fprintf(out, "Bot:       %s\n", botName)
+	_, _ = fmt.Fprintf(out, "Workspace: %s\n", workspaceDisplay)
+	_, _ = fmt.Fprintf(out, "Bot Token: %s %s\n", maskToken(cfg.Bot.BotToken), botStatus)
+	_, _ = fmt.Fprintf(out, "App Token: %s %s\n", maskToken(cfg.Bot.AppToken), appStatus)
+	_, _ = fmt.Fprintf(out, "Config:    %s\n", cfgPath)
 
 	return nil
 }

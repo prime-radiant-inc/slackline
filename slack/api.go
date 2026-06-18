@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"io"
 
 	goslack "github.com/slack-go/slack"
@@ -27,6 +28,11 @@ type SlackAPI interface {
 	// files.getUploadURLExternal + files.completeUploadExternal flow.
 	// Implementation lives in slack/files.go (Task 3 fills it in).
 	UploadFiles(channelID, threadTS, initialComment string, files []FileUpload) ([]goslack.FileSummary, error)
+}
+
+// AppTokenAPI is the Socket Mode preflight surface used by auth status.
+type AppTokenAPI interface {
+	OpenSocketMode(ctx context.Context) error
 }
 
 // FileUpload describes a single local file destined for a batched multi-file upload.

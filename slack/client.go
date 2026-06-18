@@ -1,6 +1,8 @@
 package slack
 
 import (
+	"context"
+
 	goslack "github.com/slack-go/slack"
 )
 
@@ -23,5 +25,18 @@ func NewClient(botToken string) SlackAPI {
 	}
 }
 
+// NewAppClient returns the app-token API surface used for Socket Mode checks.
+func NewAppClient(appToken string) AppTokenAPI {
+	return &realClient{
+		Client: goslack.New("", goslack.OptionAppLevelToken(appToken)),
+	}
+}
+
+func (c *realClient) OpenSocketMode(ctx context.Context) error {
+	_, _, err := c.StartSocketModeContext(ctx)
+	return err
+}
+
 // Compile-time check that realClient satisfies SlackAPI.
 var _ SlackAPI = (*realClient)(nil)
+var _ AppTokenAPI = (*realClient)(nil)

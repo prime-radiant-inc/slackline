@@ -55,7 +55,7 @@ slackline auth status
 slackline auth whoami
 ```
 
-Note: App Token shows `(configured)` not `(valid)` — app tokens can't be validated via the REST API. `(configured)` means the `xapp-` prefix is present.
+`auth status` validates the bot token with `auth.test` and validates the app token by opening a Socket Mode connection URL via `apps.connections.open`.
 
 ## Commands
 

@@ -11,7 +11,7 @@ allowed-tools: Bash(slackline:*)
 ## Prerequisites
 
 - `slackline` on PATH (`~/.local/bin/slackline`). Install: see the repo README.
-- A configured bot: `slackline auth status` should print `Bot:` and a `(valid)` token. Use `slackline auth whoami` when you only need the validated bot/workspace identity. If not configured, run `slackline init` (needs already-provisioned `xoxb-`/`xapp-` tokens). To create a brand-new bot, see the Provisioning section below.
+- A configured bot: `slackline auth status` should print valid bot and app tokens. Use `slackline auth whoami` when you only need the validated bot/workspace identity. If not configured, run `slackline init` (needs already-provisioned `xoxb-`/`xapp-` tokens). To create a brand-new bot, see the Provisioning section below.
 - `jq` only if you want to reshape output — most tasks no longer need it.
 
 ## The membership gotcha (read this first)
