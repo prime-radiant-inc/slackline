@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -456,8 +457,8 @@ func TestFetchReplies_RespectsLimit(t *testing.T) {
 	}
 }
 
-// TestFetchReplies_PaginatesToTail guards PRI-1879: conversations.replies
-// returns messages oldest-first and paginates forward, so the newest replies
+// TestFetchReplies_PaginatesToTail guards PRI-1879: when a thread is served
+// oldest page first, the newest replies
 // live on the last page. fetchReplies must follow the cursor to the end and
 // return the true tail, not stop after the first page.
 func TestFetchReplies_PaginatesToTail(t *testing.T) {
@@ -493,6 +494,56 @@ func TestFetchReplies_PaginatesToTail(t *testing.T) {
 	// pagination would stop short of the tail again.
 	if got := api.capturedRepliesParams.Limit; got != 100 {
 		t.Errorf("page Limit = %d, want 100", got)
+	}
+}
+
+// newestPageFirstThread is the page shape Slack actually serves for a thread
+// longer than one page (PRI-3813): the first page holds the newest replies,
+// later pages go back in time, and every page starts with the thread parent.
+func newestPageFirstThread() *fakeSlackAPI {
+	return &fakeSlackAPI{
+		repliesPages: [][]goslack.Message{
+			{
+				makeMessage(ts1, "U1", "parent"),
+				makeMessage("2.3", "U4", "reply three"),
+				makeMessage("2.4", "U5", "newest reply"),
+			},
+			{
+				makeMessage(ts1, "U1", "parent"),
+				makeMessage("2.1", "U2", "reply one"),
+				makeMessage("2.2", "U3", "reply two"),
+			},
+		},
+	}
+}
+
+func timestamps(msgs []goslack.Message) []string {
+	out := make([]string, len(msgs))
+	for i, m := range msgs {
+		out[i] = m.Timestamp
+	}
+	return out
+}
+
+func TestFetchReplies_NewestPageFirst_ReturnsNewestReplies(t *testing.T) {
+	msgs, err := fetchReplies(newestPageFirstThread(), fixtureChannelID, ts1, "", 3)
+	if err != nil {
+		t.Fatalf("fetchReplies returned error: %v", err)
+	}
+	want := []string{"2.2", "2.3", "2.4"}
+	if got := timestamps(msgs); !slices.Equal(got, want) {
+		t.Errorf("timestamps = %v, want %v", got, want)
+	}
+}
+
+func TestFetchReplies_NewestPageFirst_WholeThreadInOrderWithOneParent(t *testing.T) {
+	msgs, err := fetchReplies(newestPageFirstThread(), fixtureChannelID, ts1, "", 10)
+	if err != nil {
+		t.Fatalf("fetchReplies returned error: %v", err)
+	}
+	want := []string{ts1, "2.1", "2.2", "2.3", "2.4"}
+	if got := timestamps(msgs); !slices.Equal(got, want) {
+		t.Errorf("timestamps = %v, want %v", got, want)
 	}
 }
 
