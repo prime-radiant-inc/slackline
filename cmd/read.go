@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -278,10 +279,12 @@ func fetchHistory(api slackpkg.SlackAPI, channelID, oldest string, limit int) ([
 }
 
 // fetchReplies retrieves thread replies, returning up to limit messages in
-// chronological order, counted from the newest. Slack returns replies
-// oldest-first and paginates forward, so the newest replies live on the last
-// page: we must follow the cursor to the end of the thread before truncating,
-// otherwise the true tail is silently dropped (PRI-1879).
+// chronological order, counted from the newest. Slack's page order is not
+// something to rely on: a thread longer than one page comes back newest page
+// first, with the thread parent repeated at the top of every page. So we
+// follow the cursor to the end, then order the messages by timestamp and
+// drop the repeats before truncating. Slack timestamps are fixed-width, so
+// comparing them as strings orders them by time.
 func fetchReplies(api slackpkg.SlackAPI, channelID, threadTS, oldest string, limit int) ([]goslack.Message, error) {
 	var all []goslack.Message
 	cursor := ""
@@ -302,7 +305,12 @@ func fetchReplies(api slackpkg.SlackAPI, channelID, threadTS, oldest string, lim
 		}
 		cursor = nextCursor
 	}
-	// Keep the newest `limit` messages (pagination collects the whole thread).
+	slices.SortStableFunc(all, func(a, b goslack.Message) int {
+		return strings.Compare(a.Timestamp, b.Timestamp)
+	})
+	all = slices.CompactFunc(all, func(a, b goslack.Message) bool {
+		return a.Timestamp == b.Timestamp
+	})
 	if len(all) > limit {
 		all = all[len(all)-limit:]
 	}

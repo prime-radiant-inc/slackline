@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- `slackline read --thread` on a thread longer than one page (about 100 replies) returned the oldest replies, out of order, with the thread parent repeated once per page. It now returns the newest `--limit` messages in chronological order with no repeats. (PRI-3813)
+
 ## [0.5.0] - 2026-06-18
 
 ### Added
